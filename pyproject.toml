@@ -1,0 +1,10 @@
+[project]
+name = "playwright-python-tests"
+version = "0.1.0"
+requires-python = ">=3.14"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+base_url = "https://the-internet.herokuapp.com"
+addopts = "--screenshot only-on-failure --video retain-on-failure --tracing retain-on-failure --output test-results"
