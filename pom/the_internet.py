@@ -1,16 +1,28 @@
-from typing import Self
+from typing import Literal, Self
 
 from playwright.sync_api import Dialog, Locator, Page
 
+type NavigationWaitEvent = Literal["commit", "domcontentloaded", "load", "networkidle"]
+
 
 class BasePage:
-    def __init__(self, page: Page, path: str) -> None:
+    def __init__(
+        self,
+        page: Page,
+        path: str,
+        wait_until: NavigationWaitEvent = "domcontentloaded",
+        blocked_resources: tuple[str, ...] = (),
+    ) -> None:
         self.page = page
         self.path = path
+        self.wait_until = wait_until
+        self.blocked_resources = blocked_resources
         self.heading = page.locator("#content").get_by_role("heading").first
 
     def open(self) -> Self:
-        self.page.goto(self.path)
+        for url_pattern in self.blocked_resources:
+            self.page.route(url_pattern, lambda route: route.abort())
+        self.page.goto(self.path, wait_until=self.wait_until)
         return self
 
 
@@ -90,7 +102,13 @@ class AddRemoveElementsPage(BasePage):
 
 class JavaScriptAlertsPage(BasePage):
     def __init__(self, page: Page) -> None:
-        super().__init__(page, "/javascript_alerts")
+        # The alert buttons use inline handlers; these render-blocking scripts are unused
+        # and intermittently stall ~30 s on Heroku before returning 503.
+        super().__init__(
+            page,
+            "/javascript_alerts",
+            blocked_resources=("**/jquery-ui-*/jquery-ui.js", "**/foundation/foundation.alerts.js"),
+        )
         self.alert_button = page.get_by_role("button", name="Click for JS Alert")
         self.confirm_button = page.get_by_role("button", name="Click for JS Confirm")
         self.prompt_button = page.get_by_role("button", name="Click for JS Prompt")

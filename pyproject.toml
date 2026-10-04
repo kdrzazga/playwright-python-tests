@@ -7,4 +7,4 @@ requires-python = ">=3.14"
 testpaths = ["tests"]
 pythonpath = ["."]
 base_url = "https://the-internet.herokuapp.com"
-addopts = "--screenshot only-on-failure --video retain-on-failure --tracing retain-on-failure --output test-results"
+addopts = "--reruns 2 --reruns-delay 2 --screenshot only-on-failure --video retain-on-failure --tracing retain-on-failure --output test-results"
