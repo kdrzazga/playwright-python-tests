@@ -170,6 +170,24 @@ td {
     white-space: nowrap;
 }
 
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.pagination-controls button {
+    padding: 6px 12px;
+}
+
+.page-indicator {
+    padding: 0 8px;
+    color: var(--muted-text-color);
+}
+
 th {
     background: var(--background-color);
     font-size: 0.85rem;

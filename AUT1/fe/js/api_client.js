@@ -18,8 +18,13 @@ export class ApiClient {
         return this.#sendJsonRequest("GET", "/api/session");
     }
 
-    async fetchAllTablesLimitedToDisplayedRecordLimit() {
+    async fetchFirstPageOfAllTables() {
         return this.#sendJsonRequest("GET", "/api/database/tables");
+    }
+
+    async fetchPageOfTable(tableName, pageNumber) {
+        const tableUrl = `/api/database/tables/${encodeURIComponent(tableName)}?page=${pageNumber}`;
+        return this.#sendJsonRequest("GET", tableUrl);
     }
 
     async #sendJsonRequest(method, url, requestBody) {

@@ -2,7 +2,6 @@ from pathlib import Path
 
 from authentication import AuthenticationService, SessionStore, UserRepository
 from database import InMemoryDatabase
-from demo_data_seeder import DemoDataSeeder
 
 
 class CarDealerApplication:
@@ -11,15 +10,16 @@ class CarDealerApplication:
         database,
         authentication_service,
         front_end_directory,
-        displayed_record_limit=50,
+        records_per_page=15,
         session_cookie_name="session_token",
     ):
         self.database = database
         self.authentication_service = authentication_service
         self.front_end_directory = Path(front_end_directory).resolve()
-        self.displayed_record_limit = displayed_record_limit
+        self.records_per_page = records_per_page
         self.session_cookie_name = session_cookie_name
         self.login_page_path = "/login_page.html"
+        self.single_table_api_path_prefix = "/api/database/tables/"
         self.page_access_rules = {
             "/home_page.html": lambda user: user.can_access_front_end,
             "/database_page.html": lambda user: user.can_view_whole_database,
@@ -34,9 +34,8 @@ class CarDealerApplication:
         }
 
     @classmethod
-    def create_with_default_users_and_demo_data(cls, front_end_directory):
-        database = InMemoryDatabase()
-        DemoDataSeeder(database).seed_database_with_demo_data()
+    def create_with_default_users_and_database_built_from_sql_scripts(cls, front_end_directory, sql_script_paths):
+        database = InMemoryDatabase.create_by_running_sql_scripts(sql_script_paths)
         authentication_service = AuthenticationService(
             UserRepository.with_default_application_users(),
             SessionStore(),
@@ -49,11 +48,14 @@ class CarDealerApplication:
     def user_is_allowed_to_open_page(self, user, request_path):
         return user is not None and self.page_access_rules[request_path](user)
 
-    def describe_all_tables_for_display(self):
+    def describe_first_page_of_all_tables_for_display(self):
         return {
-            "displayed_record_limit": self.displayed_record_limit,
-            "tables": self.database.describe_all_tables_with_records_up_to_limit(self.displayed_record_limit),
+            "records_per_page": self.records_per_page,
+            "tables": self.database.describe_first_page_of_all_tables(self.records_per_page),
         }
+
+    def describe_table_page_for_display(self, table_name, page_number):
+        return self.database.find_table_by_name(table_name).describe_page(page_number, self.records_per_page)
 
     def find_front_end_file_for_request_path(self, request_path):
         candidate_file = (self.front_end_directory / request_path.lstrip("/")).resolve()

@@ -2,9 +2,10 @@ import json
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from authentication import FrontEndAccessDeniedError, InvalidCredentialsError
+from database import PageOutOfRangeError, TableNotFoundError
 
 
 class MalformedRequestBodyError(ValueError):
@@ -24,13 +25,16 @@ class CarDealerRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         request_path = self._read_request_path()
+        single_table_api_path_prefix = self.application.single_table_api_path_prefix
         api_routes = {
             "/": self._redirect_to_login_page,
             "/api/session": self._respond_with_logged_in_user,
-            "/api/database/tables": self._respond_with_all_tables_limited_to_displayed_record_limit,
+            "/api/database/tables": self._respond_with_first_page_of_all_tables,
         }
         if request_path in api_routes:
             api_routes[request_path]()
+        elif request_path.startswith(single_table_api_path_prefix):
+            self._respond_with_requested_page_of_single_table(request_path.removeprefix(single_table_api_path_prefix))
         elif self.application.is_protected_page(request_path):
             self._serve_protected_page_or_redirect_to_login(request_path)
         else:
@@ -84,14 +88,41 @@ class CarDealerRequestHandler(BaseHTTPRequestHandler):
         else:
             self._respond_with_json(HTTPStatus.OK, logged_in_user.describe_without_password())
 
-    def _respond_with_all_tables_limited_to_displayed_record_limit(self):
+    def _respond_with_first_page_of_all_tables(self):
+        if self._respond_with_error_unless_logged_in_user_can_view_whole_database():
+            return
+        self._respond_with_json(HTTPStatus.OK, self.application.describe_first_page_of_all_tables_for_display())
+
+    def _respond_with_requested_page_of_single_table(self, table_name):
+        if self._respond_with_error_unless_logged_in_user_can_view_whole_database():
+            return
+        try:
+            table_page = self.application.describe_table_page_for_display(
+                table_name, self._read_page_number_from_query_string()
+            )
+        except TableNotFoundError as error:
+            self._respond_with_json(HTTPStatus.NOT_FOUND, {"error": str(error)})
+        except PageOutOfRangeError as error:
+            self._respond_with_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+        else:
+            self._respond_with_json(HTTPStatus.OK, table_page)
+
+    def _respond_with_error_unless_logged_in_user_can_view_whole_database(self):
         logged_in_user = self._find_logged_in_user()
         if logged_in_user is None:
             self._respond_with_json(HTTPStatus.UNAUTHORIZED, {"error": "Not logged in"})
-        elif not logged_in_user.can_view_whole_database:
+            return True
+        if not logged_in_user.can_view_whole_database:
             self._respond_with_json(HTTPStatus.FORBIDDEN, {"error": "Only admin can view the whole database"})
-        else:
-            self._respond_with_json(HTTPStatus.OK, self.application.describe_all_tables_for_display())
+            return True
+        return False
+
+    def _read_page_number_from_query_string(self):
+        requested_page = parse_qs(urlsplit(self.path).query).get("page", ["1"])[0]
+        try:
+            return int(requested_page)
+        except ValueError as error:
+            raise PageOutOfRangeError(f"Page '{requested_page}' is not a whole number") from error
 
     def _serve_protected_page_or_redirect_to_login(self, request_path):
         if self.application.user_is_allowed_to_open_page(self._find_logged_in_user(), request_path):
