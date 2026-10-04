@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Car Sales & Rental - Login</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <script type="module" src="/js/login_page.js"></script>
+</head>
+<body class="centered-layout">
+<main class="card login-card">
+    <h1 data-testid="app-title">Car Sales & Rental</h1>
+    <form data-testid="login-form" novalidate>
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" autocomplete="username" data-testid="username-input" required>
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" data-testid="password-input" required>
+        <p class="error-message" role="alert" data-testid="login-error-message" hidden></p>
+        <button type="submit" class="primary-button" data-testid="login-button">Log in</button>
+    </form>
+</main>
+</body>
+</html>
