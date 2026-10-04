@@ -7,13 +7,18 @@ from pom import TheInternet
 from tests.credentials import Credentials
 
 
+pytestmark = pytest.mark.auth
+
+
 class TestLogin:
+    @pytest.mark.smoke
     def test_valid_credentials_open_secure_area(self, the_internet: TheInternet, valid_credentials: Credentials) -> None:
         the_internet.login.open().login(valid_credentials.username, valid_credentials.password)
 
         expect(the_internet.secure_area.page).to_have_url(re.compile(r"/secure$"))
         expect(the_internet.secure_area.flash_message).to_contain_text("You logged into a secure area!")
 
+    @pytest.mark.negative
     @pytest.mark.parametrize(
         ("username", "password", "expected_message"),
         (

@@ -1,11 +1,16 @@
 import re
 
+import pytest
 from playwright.sync_api import expect
 
 from pom import TheInternet
 
 
+pytestmark = pytest.mark.home
+
+
 class TestHomePage:
+    @pytest.mark.smoke
     def test_displays_welcome_heading(self, the_internet: TheInternet) -> None:
         the_internet.home.open()
 

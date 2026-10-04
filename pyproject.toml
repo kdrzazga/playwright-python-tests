@@ -7,4 +7,14 @@ requires-python = ">=3.14"
 testpaths = ["tests"]
 pythonpath = ["."]
 base_url = "https://the-internet.herokuapp.com"
-addopts = "--reruns 2 --reruns-delay 2 --screenshot only-on-failure --video retain-on-failure --tracing retain-on-failure --output test-results"
+markers = [
+    "smoke: fast critical-path checks, one per feature area",
+    "negative: invalid input / error-path scenarios",
+    "slow: tests that wait on deliberately delayed page behaviour",
+    "home: home page and navigation",
+    "auth: login and logout",
+    "forms: checkboxes, dropdowns and add/remove elements",
+    "alerts: JavaScript alert, confirm and prompt dialogs",
+    "dynamic_loading: content rendered after an async load",
+]
+addopts = "--strict-markers --reruns 2 --reruns-delay 2 --screenshot only-on-failure --video retain-on-failure --tracing retain-on-failure --output test-results"

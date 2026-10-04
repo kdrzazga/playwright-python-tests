@@ -1,9 +1,14 @@
+import pytest
 from playwright.sync_api import expect
 
 from pom import TheInternet
 
 
+pytestmark = pytest.mark.forms
+
+
 class TestCheckboxes:
+    @pytest.mark.smoke
     def test_initial_state(self, the_internet: TheInternet) -> None:
         checkboxes = the_internet.checkboxes.open()
 

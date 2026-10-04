@@ -1,9 +1,12 @@
+import pytest
 from playwright.sync_api import expect
 
 from pom import TheInternet
 
 
+@pytest.mark.alerts
 class TestJavaScriptAlerts:
+    @pytest.mark.smoke
     def test_accept_alert(self, the_internet: TheInternet) -> None:
         alerts = the_internet.javascript_alerts.open()
 
@@ -34,6 +37,8 @@ class TestJavaScriptAlerts:
         expect(alerts.result).to_have_text("You entered: Playwright")
 
 
+@pytest.mark.dynamic_loading
+@pytest.mark.slow
 class TestDynamicLoading:
     def test_element_rendered_after_loading(self, the_internet: TheInternet) -> None:
         dynamic_loading = the_internet.dynamic_loading.open()

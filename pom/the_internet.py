@@ -11,7 +11,7 @@ class BasePage:
         page: Page,
         path: str,
         wait_until: NavigationWaitEvent = "domcontentloaded",
-        blocked_resources: tuple[str, ...] = (),
+        blocked_resources: tuple[str, ...] = (), #tuple containing any number of strings
     ) -> None:
         self.page = page
         self.path = path
