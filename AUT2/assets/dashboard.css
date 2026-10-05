@@ -137,3 +137,21 @@ body {
 .detail-panel dd {
     margin: 0 0 10px;
 }
+
+.data-source-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin: 4px 0 16px;
+    font-size: 0.9rem;
+    color: var(--muted-text-color);
+}
+
+.error-panel {
+    padding: 16px 20px;
+    border: 1px solid #c62828;
+    border-radius: 8px;
+    background: #fdecea;
+    color: #c62828;
+}

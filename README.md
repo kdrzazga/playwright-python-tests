@@ -2,7 +2,7 @@
 
 UI tests for [the-internet.herokuapp.com](https://the-internet.herokuapp.com) using Playwright, pytest and a page object model (`pom/`).
 
-The repository also contains two local applications to test against: [AUT1](#aut1--car-sales-and-rental-app), a car sales and rental web app, and [AUT2](#aut2--dealership-analytics-dash), a Dash analytics dashboard over the same data.
+The repository also contains two local applications to test against: [AUT1](#aut1--car-sales-and-rental-app), a car sales and rental web app, and [AUT2](#aut2--dealership-analytics-dash), a Dash analytics dashboard that reads AUT1's data live through its API.
 
 ## Setup
 
@@ -223,11 +223,13 @@ expect.set_options(timeout=20_000)
 
 ## AUT2 – dealership analytics (Dash)
 
-A [Dash](https://dash.plotly.com/) dashboard in `AUT2/` that analyses the AUT1 dealership data. It builds its own in-memory copy of the AUT1 databases from the same SQL scripts at startup, using AUT1's data layer, so both apps start from identical data. Changes made in a running AUT1 are not visible in AUT2.
+A [Dash](https://dash.plotly.com/) dashboard in `AUT2/` that analyses live AUT1 data. It logs in to the running AUT1 server and reads the tables it needs page by page through `GET /api/database/tables/<database>/<table>`. It does not import any AUT1 code.
+
+Data is cached in a snapshot that is refetched every `--refresh-seconds` (and on **Refresh now**); filter changes reuse the snapshot, so they do not call AUT1. Changes made in AUT1, for example a vehicle added on its Vehicles page, appear in AUT2 after the next refresh. If AUT1 stops answering, AUT2 keeps showing the last data and says so in the status line; it logs in again automatically after an AUT1 restart.
 
 ### Setup
 
-AUT2 needs Dash (which brings Flask and Plotly), unlike AUT1:
+AUT2 needs Dash (which brings Flask, Plotly and requests), unlike AUT1:
 
 ```bash
 venv/Scripts/python -m pip install -r AUT2/requirements.txt
@@ -235,20 +237,30 @@ venv/Scripts/python -m pip install -r AUT2/requirements.txt
 
 ### Running the dashboard
 
+Start AUT1 first, then AUT2 in a second terminal:
+
+```bash
+python AUT1/be/server.py
+```
+
 ```bash
 venv/Scripts/python AUT2/app.py
 ```
 
-Then open <http://127.0.0.1:8050/>.
+Then open <http://127.0.0.1:8050/>. If AUT1 is not running when the page loads, AUT2 shows an error panel (`data-testid="data-source-error"`); start AUT1 and reload.
 
 | Option | Default | Description |
 |---|---|---|
 | `--host` | `127.0.0.1` | Address to listen on. |
 | `--port` | `8050` | Port to listen on. |
-| `--aut1-backend-directory` | `AUT1/be` | AUT1 backend whose data layer builds the database. |
-| `--aut1-sql-directory` | `AUT1/be/sql` | AUT1 SQL scripts to load. |
+| `--aut1-url` | `http://127.0.0.1:8000` | Base URL of the running AUT1 server. |
+| `--aut1-username` | `$AUT1_USERNAME` or `admin` | AUT1 user to read data as; needs the `view_db_tables` permission. |
+| `--aut1-password` | `$AUT1_PASSWORD` or `admin` | That user's password. |
+| `--refresh-seconds` | `10` | How often the snapshot is refetched from AUT1. A full refresh is about 20 API calls. |
 | `--as-of-date` | today | Date (`YYYY-MM-DD`) used for vehicle status (available / rented / sold) and as the default end of date ranges. Fix it in tests so results do not change from day to day. |
 | `--debug` | off | Dash debug mode with hot reload and the in-page error overlay. |
+
+When AUT1 runs with `--extra-load`, AUT2's refreshes become slower (reference data such as factories is delayed), while filter changes in AUT2 stay fast.
 
 ### Tabs
 
@@ -259,6 +271,6 @@ Then open <http://127.0.0.1:8050/>.
 | Loans | Loan status filter; financed principal by lender; loans table with instalments and total interest. |
 | Factories | Factory state and country filters; a year slider; a world map of factories operating in the selected year (green: still active, red: closed since); factories operating per year; clicking a map marker shows the factory's details. |
 
-Interactive Dash components have stable `id`s (for example `#overview-brand-checklist`, `#revenue-by-brand-graph`, `#stock-table`, `#factory-year-slider`, `#factory-map-graph`); containers carry `data-testid` attributes (for example `key-figure-vehicles_sold`, `stock-vehicle-count`, `factory-count`, `factory-detail-panel`, `factory-detail-name`).
+The header shows the data source and last refresh time (`data-testid="data-source-status"`) and a **Refresh now** button (`#refresh-data-button`). Interactive Dash components have stable `id`s (for example `#overview-brand-checklist`, `#revenue-by-brand-graph`, `#stock-table`, `#factory-year-slider`, `#factory-map-graph`); containers carry `data-testid` attributes (for example `key-figure-vehicles_sold`, `stock-vehicle-count`, `factory-count`, `factory-detail-panel`, `factory-detail-name`).
 
 Every filter change is a round trip to the server, so wait for the updated content (for example the `factory-count` text) rather than asserting immediately after an interaction.
