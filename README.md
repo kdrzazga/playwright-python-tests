@@ -2,6 +2,8 @@
 
 UI tests for [the-internet.herokuapp.com](https://the-internet.herokuapp.com) using Playwright, pytest and a page object model (`pom/`).
 
+The repository also contains [AUT1](#aut1--car-sales-and-rental-app), a local car sales and rental web app to test against.
+
 ## Setup
 
 Requires Python 3.14.
@@ -108,3 +110,91 @@ Markers are registered under `[tool.pytest.ini_options] markers` in `pyproject.t
 
 - Tag a whole file with `pytestmark = pytest.mark.<area>` at module level.
 - Tag a class or a single test with the `@pytest.mark.<tag>` decorator.
+
+## AUT1 – car sales and rental app
+
+A local application under test in `AUT1/`: an HTML/JS/CSS frontend (`AUT1/fe`) served by a Python backend (`AUT1/be`) with in-memory SQLite databases. It uses only the Python standard library, so there is nothing extra to install.
+
+### Running the server
+
+From the repository root:
+
+```bash
+python AUT1/be/server.py
+```
+
+Then open <http://127.0.0.1:8000/login_page.html>. Stop the server with `Ctrl+C`.
+
+The databases live in memory and are rebuilt from the SQL scripts on every start, so each run begins with the same seed data and nothing persists between runs. Restart the server after changing a SQL script.
+
+### Options
+
+| Option | Default | Description |
+|---|---|---|
+| `--host` | `127.0.0.1` | Address to listen on. |
+| `--port` | `8000` | Port to listen on. |
+| `--front-end-directory` | `AUT1/fe` | Directory with the HTML, JS and CSS files. |
+| `--sql-directory` | `AUT1/be/sql` | Directory with `reference/` and `dealership/` subdirectories, each holding `schema.sql` and `seed_data.sql`. Point it at a copy to run with a different data set. |
+| `--extra-load`, `-el` | off | Simulates heavy load: every call that touches reference data rolls 3 times, each roll with a ~15% chance of a 2–5 s delay. See [Extra load](#extra-load). |
+| `-h`, `--help` | | Prints the options. |
+
+```bash
+python AUT1/be/server.py --port 8080
+python AUT1/be/server.py --extra-load
+python AUT1/be/server.py --sql-directory path/to/test_sql
+```
+
+### Users
+
+Only `admin` may use the frontend; the other users exist but get a "not allowed to access the front-end" error on login.
+
+| Username | Password | Frontend access |
+|---|---|---|
+| `admin` | `admin` | Yes, including **Show whole DB** |
+| `superuser` | `superuser` | No |
+| `user_vw` | `user_vw` | No |
+| `user_tesla` | `user_tesla` | No |
+| `viewer` | `viewer` | No |
+
+### Pages
+
+| Page | Content |
+|---|---|
+| `/login_page.html` | Login form. |
+| `/home_page.html` | Welcome message, **Show whole DB** button (admin only), logout. |
+| `/database_page.html` | All tables grouped by database, 15 records per page with First / Previous / Next / Last navigation. |
+
+The home and database pages show a footer: *Logged in as **user** on yyyy-mm-dd hh:mm:ss*. Opening them without a session redirects to the login page. Interactive elements carry `data-testid` attributes, for example `login-button`, `show-whole-db-button`, `table-dealership-vehicles`, `row-reference-factories-1`, `pagination-next-dealership-vehicles`, `session-footer`.
+
+### API
+
+| Method and path | Description |
+|---|---|
+| `POST /api/login` | Body `{"username": ..., "password": ...}`. 401 for wrong credentials, 403 for users not allowed on the frontend. Sets the session cookie. |
+| `POST /api/logout` | Ends the session. |
+| `GET /api/session` | Logged-in user and `logged_in_at`; 401 when not logged in. |
+| `GET /api/database/tables` | First page of every table (admin only). |
+| `GET /api/database/tables/<database>/<table>?page=N` | One page of one table, e.g. `/api/database/tables/dealership/vehicles?page=2`. 404 for an unknown table, 400 for an invalid page. |
+
+### Databases
+
+Two in-memory SQLite databases, each built from its own scripts in `AUT1/be/sql/`:
+
+- **REFERENCE** – rarely changing master data: `customers` with the `individual_customers` and `institutional_customers` subtypes, `companies` (banks and leasing companies), `commercial_policy` (fleet size, default fleet discount, default rental prolongation) and `factories`.
+- **DEALERSHIP** – `vehicles`, `sale_agreements` / `sales`, `rental_agreements` / `rentals`, `loans`, plus read-only replicas of the REFERENCE tables it references, so all foreign keys are enforced. Writing to a replica directly is rejected; changes go to REFERENCE and are replicated in the same transaction.
+
+### Extra load
+
+With `--extra-load` (`-el`) the server simulates heavy load on reference data: each operation that reads or writes REFERENCE tables, their replicas, or tables displaying replica columns (for example customer names on agreements) rolls 3 times, each with a ~15% chance of a 2–5 s delay. Delays add up, so about 40% of such operations are slowed down and a few take longer than 5 s, at most 15 s. Operations on other tables, login and static files are never delayed, and a delayed reply does not hold up other requests. Each delay is logged:
+
+```text
+[extra-load] roll 2/3: delaying reference data reply by 3.4 s
+```
+
+Playwright's `expect` assertions time out after 5 s by default, so raise the timeout for runs against a server started with `-el`:
+
+```python
+from playwright.sync_api import expect
+
+expect.set_options(timeout=20_000)
+```

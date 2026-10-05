@@ -1,6 +1,7 @@
 import hmac
 import secrets
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 
 
@@ -63,20 +64,33 @@ class UserRepository:
         return self._users_by_username.get(username)
 
 
+@dataclass(frozen=True)
+class UserSession:
+    user: User
+    logged_in_at: datetime
+
+    def describe_with_login_time_formatted_as(self, login_time_format):
+        return {
+            **self.user.describe_without_password(),
+            "logged_in_at": self.logged_in_at.strftime(login_time_format),
+        }
+
+
 class SessionStore:
-    def __init__(self):
-        self._users_by_session_token = {}
+    def __init__(self, current_time_provider=datetime.now):
+        self.current_time_provider = current_time_provider
+        self._sessions_by_session_token = {}
 
     def open_session_for_user(self, user):
         session_token = secrets.token_urlsafe(32)
-        self._users_by_session_token[session_token] = user
+        self._sessions_by_session_token[session_token] = UserSession(user, self.current_time_provider())
         return session_token
 
-    def find_user_by_session_token(self, session_token):
-        return self._users_by_session_token.get(session_token)
+    def find_session_by_session_token(self, session_token):
+        return self._sessions_by_session_token.get(session_token)
 
     def close_session(self, session_token):
-        self._users_by_session_token.pop(session_token, None)
+        self._sessions_by_session_token.pop(session_token, None)
 
 
 class AuthenticationService:
@@ -90,10 +104,14 @@ class AuthenticationService:
             raise FrontEndAccessDeniedError(f"User '{username}' is not allowed to access the front-end")
         return self.session_store.open_session_for_user(user)
 
-    def find_logged_in_user_by_session_token(self, session_token):
+    def find_session_by_session_token(self, session_token):
         if session_token is None:
             return None
-        return self.session_store.find_user_by_session_token(session_token)
+        return self.session_store.find_session_by_session_token(session_token)
+
+    def find_logged_in_user_by_session_token(self, session_token):
+        user_session = self.find_session_by_session_token(session_token)
+        return None if user_session is None else user_session.user
 
     def log_out_session(self, session_token):
         if session_token is not None:

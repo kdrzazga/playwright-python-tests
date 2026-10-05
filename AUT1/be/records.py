@@ -120,6 +120,18 @@ class Company:
 
 
 @dataclass(frozen=True)
+class Factory:
+    id: int
+    name: str
+    manufacturer: str
+    city: str
+    country: str
+    opened_year: int
+    closed_year: int | None
+    active: bool
+
+
+@dataclass(frozen=True)
 class CommercialPolicy:
     id: int
     fleet_minimum_vehicle_count: int

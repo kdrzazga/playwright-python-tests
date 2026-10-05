@@ -1,12 +1,15 @@
 from database_errors import RecordNotFoundError
+from simulated_load import NoSimulatedLoad, subject_to_simulated_load
 
 
 class ReplicatedReferenceTable:
-    def __init__(self, connection, master_table, replica_table, replication_guard_table_name):
+    def __init__(self, connection, master_table, replica_table, replication_guard_table_name, simulated_load=None):
         self.connection = connection
         self.master_table = master_table
         self.replica_table = replica_table
         self.replication_guard_table_name = replication_guard_table_name
+        self.simulated_load = simulated_load or NoSimulatedLoad()
+        self.touches_reference_data = True
 
     @property
     def replication_guard_qualified_table_name(self):
@@ -36,6 +39,7 @@ class ReplicatedReferenceTable:
             lambda transaction: self._copy_master_rows_to_replica(transaction, "WHERE true", ())
         )
 
+    @subject_to_simulated_load
     def insert_into_master_and_replicate(self, **column_values):
         new_primary_key_value = self.connection.run_in_single_transaction(
             lambda transaction: self.insert_into_master_and_replicate_within_transaction(transaction, **column_values)
@@ -55,6 +59,7 @@ class ReplicatedReferenceTable:
         )
         return new_primary_key_value
 
+    @subject_to_simulated_load
     def update_master_record_and_replicate(self, primary_key_value, **changed_column_values):
         self.connection.run_in_single_transaction(
             lambda transaction: self.update_master_record_and_replicate_within_transaction(

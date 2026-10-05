@@ -5,6 +5,7 @@ from types import NoneType, UnionType
 from typing import get_args
 
 from database_errors import PageOutOfRangeError, RecordNotFoundError, RelationshipNotFoundError
+from simulated_load import NoSimulatedLoad, subject_to_simulated_load
 
 
 class ManyToOneRelationship:
@@ -47,6 +48,8 @@ class SqlTable:
         relationships=(),
         replica_of_qualified_table_name=None,
         primary_key_column_name="id",
+        simulated_load=None,
+        touches_reference_data=False,
     ):
         self.connection = connection
         self.database_name = database_name
@@ -54,6 +57,8 @@ class SqlTable:
         self.record_type = record_type
         self.replica_of_qualified_table_name = replica_of_qualified_table_name
         self.primary_key_column_name = primary_key_column_name
+        self.simulated_load = simulated_load or NoSimulatedLoad()
+        self.touches_reference_data = touches_reference_data or replica_of_qualified_table_name is not None
         self._relationships_by_foreign_key_column_name = {
             relationship.foreign_key_column_name: relationship for relationship in relationships
         }
@@ -87,6 +92,7 @@ class SqlTable:
         assignments = ", ".join(f"{column_name} = ?" for column_name in updated_column_names)
         return f"UPDATE {self.qualified_table_name} SET {assignments} WHERE {self.primary_key_column_name} = ?"
 
+    @subject_to_simulated_load
     def insert_record_with_generated_id(self, **column_values):
         generated_id = self.connection.run_in_single_transaction(
             lambda transaction: transaction.execute(
@@ -95,6 +101,7 @@ class SqlTable:
         )
         return self.find_record_by_id(generated_id)
 
+    @subject_to_simulated_load
     def update_record_by_primary_key(self, primary_key_value, **changed_column_values):
         updated_row_count = self.connection.run_in_single_transaction(
             lambda transaction: transaction.execute(
@@ -108,15 +115,18 @@ class SqlTable:
             )
         return self.find_record_by_id(primary_key_value)
 
+    @subject_to_simulated_load
     def contains_record_with_id(self, record_id):
         return self.find_record_by_id(record_id) is not None
 
+    @subject_to_simulated_load
     def find_record_by_id(self, record_id):
         row = self.connection.fetch_single_row(
             f"SELECT * FROM {self.qualified_table_name} WHERE {self.primary_key_column_name} = ?", (record_id,)
         )
         return None if row is None else self.map_row_to_record(row)
 
+    @subject_to_simulated_load
     def load_related_record(self, record, relationship_name):
         for relationship in self._relationships_by_foreign_key_column_name.values():
             if relationship.relationship_name == relationship_name:
@@ -125,12 +135,15 @@ class SqlTable:
             f"Table '{self.qualified_table_name}' has no relationship named '{relationship_name}'"
         )
 
+    @subject_to_simulated_load
     def count_all_records(self):
         return self.connection.fetch_single_row(f"SELECT COUNT(*) FROM {self.qualified_table_name}")[0]
 
+    @subject_to_simulated_load
     def count_pages_for_page_size(self, page_size):
         return max(1, math.ceil(self.count_all_records() / page_size))
 
+    @subject_to_simulated_load
     def list_records_on_page(self, page_number, page_size):
         total_page_count = self.count_pages_for_page_size(page_size)
         if not 1 <= page_number <= total_page_count:
@@ -153,6 +166,7 @@ class SqlTable:
                 described_record.update(relationship.describe_related_record_of(record))
         return described_record
 
+    @subject_to_simulated_load
     def describe_page(self, page_number, page_size):
         return {
             "database_name": self.database_name,

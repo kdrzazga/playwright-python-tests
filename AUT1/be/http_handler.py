@@ -66,10 +66,10 @@ class CarDealerRequestHandler(BaseHTTPRequestHandler):
         except FrontEndAccessDeniedError as error:
             self._respond_with_json(HTTPStatus.FORBIDDEN, {"error": str(error)})
         else:
-            logged_in_user = self.application.authentication_service.find_logged_in_user_by_session_token(session_token)
+            user_session = self.application.authentication_service.find_session_by_session_token(session_token)
             self._respond_with_json(
                 HTTPStatus.OK,
-                logged_in_user.describe_without_password(),
+                user_session.describe_with_login_time_formatted_as(self.application.login_time_format),
                 extra_headers={"Set-Cookie": self._build_session_cookie_header(session_token)},
             )
 
@@ -82,11 +82,16 @@ class CarDealerRequestHandler(BaseHTTPRequestHandler):
         )
 
     def _respond_with_logged_in_user(self):
-        logged_in_user = self._find_logged_in_user()
-        if logged_in_user is None:
+        user_session = self.application.authentication_service.find_session_by_session_token(
+            self._read_session_token_from_cookie()
+        )
+        if user_session is None:
             self._respond_with_json(HTTPStatus.UNAUTHORIZED, {"error": "Not logged in"})
         else:
-            self._respond_with_json(HTTPStatus.OK, logged_in_user.describe_without_password())
+            self._respond_with_json(
+                HTTPStatus.OK,
+                user_session.describe_with_login_time_formatted_as(self.application.login_time_format),
+            )
 
     def _respond_with_first_page_of_all_tables(self):
         if self._respond_with_error_unless_logged_in_user_can_view_whole_database():

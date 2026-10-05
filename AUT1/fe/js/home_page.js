@@ -1,10 +1,12 @@
 import { ApiClient, PageNavigator } from "./api_client.js";
 import { LogoutButton } from "./logout_button.js";
+import { SessionFooter } from "./session_footer.js";
 
 class HomePage {
-    constructor(apiClient, pageNavigator) {
+    constructor(apiClient, pageNavigator, sessionFooter) {
         this.apiClient = apiClient;
         this.pageNavigator = pageNavigator;
+        this.sessionFooter = sessionFooter;
         this.welcomeMessage = document.querySelector("[data-testid='welcome-message']");
         this.showWholeDatabaseButton = document.querySelector("[data-testid='show-whole-db-button']");
     }
@@ -14,6 +16,7 @@ class HomePage {
             const loggedInUser = await this.apiClient.fetchLoggedInUser();
             this.welcomeMessage.textContent = `Welcome, ${loggedInUser.username}`;
             this.#showWholeDatabaseButtonWhenUserIsAllowed(loggedInUser);
+            this.sessionFooter.renderForLoggedInUser(loggedInUser);
         } catch {
             this.pageNavigator.goToLoginPage();
         }
@@ -31,4 +34,4 @@ class HomePage {
 const apiClient = new ApiClient();
 const pageNavigator = new PageNavigator();
 new LogoutButton(apiClient, pageNavigator).startListeningForClicks();
-new HomePage(apiClient, pageNavigator).renderForLoggedInUser();
+new HomePage(apiClient, pageNavigator, new SessionFooter()).renderForLoggedInUser();

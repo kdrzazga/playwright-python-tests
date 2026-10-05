@@ -210,6 +210,30 @@ td {
     color: var(--muted-text-color);
 }
 
+body:not(.centered-layout) {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+body:not(.centered-layout) .page-content {
+    width: 100%;
+}
+
+.session-footer {
+    padding: 12px 24px;
+    margin-top: auto;
+    background: var(--surface-color);
+    border-top: 1px solid var(--border-color);
+    color: var(--muted-text-color);
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+.session-footer strong {
+    color: var(--text-color);
+}
+
 th {
     background: var(--background-color);
     font-size: 0.85rem;

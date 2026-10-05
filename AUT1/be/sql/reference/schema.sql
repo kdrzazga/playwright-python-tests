@@ -38,3 +38,15 @@ CREATE TABLE reference.commercial_policy (
     default_fleet_discount_pct       INTEGER NOT NULL CHECK (default_fleet_discount_pct BETWEEN 0 AND 50),
     default_prolongation_period_days INTEGER NOT NULL CHECK (default_prolongation_period_days > 0)
 );
+
+CREATE TABLE reference.factories (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    name         TEXT    NOT NULL UNIQUE,
+    manufacturer TEXT    NOT NULL,
+    city         TEXT    NOT NULL,
+    country      TEXT    NOT NULL,
+    opened_year  INTEGER NOT NULL CHECK (opened_year BETWEEN 1880 AND 2100),
+    closed_year  INTEGER CHECK (closed_year IS NULL OR closed_year >= opened_year),
+    active       BOOLEAN NOT NULL CHECK (active IN (0, 1)),
+    CHECK ((active = 1) = (closed_year IS NULL))
+);

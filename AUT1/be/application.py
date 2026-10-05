@@ -10,6 +10,7 @@ from commerce import (
     VehicleAvailabilityChecker,
 )
 from database import InMemoryDatabase
+from simulated_load import NoSimulatedLoad, RandomReferenceDataLoad
 
 
 class CarDealerApplication:
@@ -32,6 +33,7 @@ class CarDealerApplication:
         self.records_per_page = records_per_page
         self.session_cookie_name = session_cookie_name
         self.login_page_path = "/login_page.html"
+        self.login_time_format = "%Y-%m-%d %H:%M:%S"
         self.single_table_api_path_prefix = "/api/database/tables/"
         self.page_access_rules = {
             "/home_page.html": lambda user: user.can_access_front_end,
@@ -47,8 +49,11 @@ class CarDealerApplication:
         }
 
     @classmethod
-    def create_with_default_users_and_database_built_from_sql_scripts(cls, front_end_directory, sql_directory):
-        database = InMemoryDatabase.create_from_sql_scripts_in_directory(sql_directory)
+    def create_with_default_users_and_database_built_from_sql_scripts(
+        cls, front_end_directory, sql_directory, extra_load_enabled=False
+    ):
+        simulated_load = RandomReferenceDataLoad() if extra_load_enabled else NoSimulatedLoad()
+        database = InMemoryDatabase.create_from_sql_scripts_in_directory(sql_directory, simulated_load=simulated_load)
         authentication_service = AuthenticationService(
             UserRepository.with_default_application_users(),
             SessionStore(),
