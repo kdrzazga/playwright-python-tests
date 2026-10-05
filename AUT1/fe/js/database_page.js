@@ -2,15 +2,15 @@ import { ApiClient, PageNavigator } from "./api_client.js";
 import { LogoutButton } from "./logout_button.js";
 
 class PaginationControls {
-    constructor(tableName, onPageRequested) {
-        this.tableName = tableName;
+    constructor(tableKey, onPageRequested) {
+        this.tableKey = tableKey;
         this.onPageRequested = onPageRequested;
     }
 
     buildNavigationElement(pageNumber, totalPageCount) {
         const navigation = document.createElement("nav");
         navigation.className = "pagination-controls";
-        navigation.dataset.testid = `pagination-${this.tableName}`;
+        navigation.dataset.testid = `pagination-${this.tableKey}`;
         const isFirstPage = pageNumber === 1;
         const isLastPage = pageNumber === totalPageCount;
         navigation.append(
@@ -29,7 +29,7 @@ class PaginationControls {
         button.className = "secondary-button";
         button.textContent = buttonLabel;
         button.disabled = isDisabled;
-        button.dataset.testid = `pagination-${buttonRole}-${this.tableName}`;
+        button.dataset.testid = `pagination-${buttonRole}-${this.tableKey}`;
         button.addEventListener("click", () => this.onPageRequested(targetPageNumber));
         return button;
     }
@@ -37,7 +37,7 @@ class PaginationControls {
     #buildPageIndicator(pageNumber, totalPageCount) {
         const pageIndicator = document.createElement("span");
         pageIndicator.className = "page-indicator";
-        pageIndicator.dataset.testid = `pagination-page-indicator-${this.tableName}`;
+        pageIndicator.dataset.testid = `pagination-page-indicator-${this.tableKey}`;
         pageIndicator.textContent = `Page ${pageNumber} of ${totalPageCount}`;
         return pageIndicator;
     }
@@ -47,17 +47,20 @@ class DatabaseTableView {
     constructor(apiClient, pageNavigator, initialTableDescription) {
         this.apiClient = apiClient;
         this.pageNavigator = pageNavigator;
+        this.databaseName = initialTableDescription.database_name;
         this.tableName = initialTableDescription.table_name;
-        this.paginationControls = new PaginationControls(this.tableName, (pageNumber) => this.#showPage(pageNumber));
+        this.replicaOf = initialTableDescription.replica_of;
+        this.tableKey = `${this.databaseName}-${this.tableName}`;
+        this.paginationControls = new PaginationControls(this.tableKey, (pageNumber) => this.#showPage(pageNumber));
         this.sectionElement = document.createElement("section");
         this.sectionElement.className = "database-table-section";
-        this.sectionElement.dataset.testid = `table-section-${this.tableName}`;
+        this.sectionElement.dataset.testid = `table-section-${this.tableKey}`;
         this.#renderTablePage(initialTableDescription);
     }
 
     async #showPage(pageNumber) {
         try {
-            const tablePage = await this.apiClient.fetchPageOfTable(this.tableName, pageNumber);
+            const tablePage = await this.apiClient.fetchPageOfTable(this.databaseName, this.tableName, pageNumber);
             this.#renderTablePage(tablePage);
         } catch {
             this.pageNavigator.goToLoginPage();
@@ -67,6 +70,7 @@ class DatabaseTableView {
     #renderTablePage(tablePage) {
         this.sectionElement.replaceChildren(
             this.#buildHeading(),
+            ...this.#buildReplicaNoticeWhenTableIsReplica(),
             this.#buildShownRecordRangeSummary(tablePage),
             this.#buildTableElement(tablePage),
             this.paginationControls.buildNavigationElement(tablePage.page_number, tablePage.total_page_count),
@@ -74,16 +78,27 @@ class DatabaseTableView {
     }
 
     #buildHeading() {
-        const heading = document.createElement("h2");
-        heading.textContent = this.tableName;
-        heading.dataset.testid = `table-heading-${this.tableName}`;
+        const heading = document.createElement("h3");
+        heading.textContent = `${this.databaseName}.${this.tableName}`;
+        heading.dataset.testid = `table-heading-${this.tableKey}`;
         return heading;
+    }
+
+    #buildReplicaNoticeWhenTableIsReplica() {
+        if (this.replicaOf === null) {
+            return [];
+        }
+        const replicaNotice = document.createElement("p");
+        replicaNotice.className = "replica-notice";
+        replicaNotice.dataset.testid = `replica-notice-${this.tableKey}`;
+        replicaNotice.textContent = `Read-only replica of ${this.replicaOf}`;
+        return [replicaNotice];
     }
 
     #buildShownRecordRangeSummary(tablePage) {
         const summary = document.createElement("p");
         summary.className = "record-count-summary";
-        summary.dataset.testid = `record-count-${this.tableName}`;
+        summary.dataset.testid = `record-count-${this.tableKey}`;
         summary.textContent = this.#describeShownRecordRange(tablePage);
         return summary;
     }
@@ -99,7 +114,7 @@ class DatabaseTableView {
 
     #buildTableElement(tablePage) {
         const table = document.createElement("table");
-        table.dataset.testid = `table-${this.tableName}`;
+        table.dataset.testid = `table-${this.tableKey}`;
         table.append(this.#buildHeaderRow(tablePage.column_names), this.#buildBodyWithRecordRows(tablePage));
         return table;
     }
@@ -119,12 +134,16 @@ class DatabaseTableView {
         const tableBody = document.createElement("tbody");
         for (const record of tablePage.records) {
             const recordRow = tableBody.insertRow();
-            recordRow.dataset.testid = `row-${this.tableName}-${record.id}`;
+            recordRow.dataset.testid = `row-${this.tableKey}-${record[tablePage.primary_key_column_name]}`;
             for (const columnName of tablePage.column_names) {
-                recordRow.insertCell().textContent = String(record[columnName]);
+                recordRow.insertCell().textContent = this.#formatCellValue(record[columnName]);
             }
         }
         return tableBody;
+    }
+
+    #formatCellValue(cellValue) {
+        return cellValue === null ? "" : String(cellValue);
     }
 }
 
@@ -142,13 +161,34 @@ class DatabasePage {
         try {
             const databaseDescription = await this.apiClient.fetchFirstPageOfAllTables();
             this.recordLimitNotice.textContent = `${databaseDescription.records_per_page} records are shown per page`;
-            const tableSections = databaseDescription.tables.map(
-                (tableDescription) => new DatabaseTableView(this.apiClient, this.pageNavigator, tableDescription).sectionElement,
-            );
-            this.tablesContainer.replaceChildren(...tableSections);
+            this.tablesContainer.replaceChildren(...this.#buildDatabaseGroups(databaseDescription.tables));
         } catch {
             this.pageNavigator.goToLoginPage();
         }
+    }
+
+    #buildDatabaseGroups(tableDescriptions) {
+        const tableDescriptionsByDatabaseName = Map.groupBy(
+            tableDescriptions,
+            (tableDescription) => tableDescription.database_name,
+        );
+        return [...tableDescriptionsByDatabaseName].map(([databaseName, databaseTableDescriptions]) =>
+            this.#buildDatabaseGroup(databaseName, databaseTableDescriptions),
+        );
+    }
+
+    #buildDatabaseGroup(databaseName, databaseTableDescriptions) {
+        const databaseGroup = document.createElement("section");
+        databaseGroup.className = "database-group";
+        databaseGroup.dataset.testid = `database-group-${databaseName}`;
+        const databaseHeading = document.createElement("h2");
+        databaseHeading.textContent = databaseName.toUpperCase();
+        databaseHeading.dataset.testid = `database-heading-${databaseName}`;
+        const tableSections = databaseTableDescriptions.map(
+            (tableDescription) => new DatabaseTableView(this.apiClient, this.pageNavigator, tableDescription).sectionElement,
+        );
+        databaseGroup.append(databaseHeading, ...tableSections);
+        return databaseGroup;
     }
 }
 

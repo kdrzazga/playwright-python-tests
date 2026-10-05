@@ -5,7 +5,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 from authentication import FrontEndAccessDeniedError, InvalidCredentialsError
-from database import PageOutOfRangeError, TableNotFoundError
+from database_errors import PageOutOfRangeError, TableNotFoundError
 
 
 class MalformedRequestBodyError(ValueError):
@@ -93,12 +93,13 @@ class CarDealerRequestHandler(BaseHTTPRequestHandler):
             return
         self._respond_with_json(HTTPStatus.OK, self.application.describe_first_page_of_all_tables_for_display())
 
-    def _respond_with_requested_page_of_single_table(self, table_name):
+    def _respond_with_requested_page_of_single_table(self, database_and_table_path):
         if self._respond_with_error_unless_logged_in_user_can_view_whole_database():
             return
+        database_name, _, table_name = database_and_table_path.partition("/")
         try:
             table_page = self.application.describe_table_page_for_display(
-                table_name, self._read_page_number_from_query_string()
+                database_name, table_name, self._read_page_number_from_query_string()
             )
         except TableNotFoundError as error:
             self._respond_with_json(HTTPStatus.NOT_FOUND, {"error": str(error)})

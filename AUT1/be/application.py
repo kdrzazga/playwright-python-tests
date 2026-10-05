@@ -1,6 +1,14 @@
 from pathlib import Path
 
 from authentication import AuthenticationService, SessionStore, UserRepository
+from commerce import (
+    AnnuityInstallmentCalculator,
+    FleetDiscountCalculator,
+    LoanDesk,
+    RentalDesk,
+    SalesDesk,
+    VehicleAvailabilityChecker,
+)
 from database import InMemoryDatabase
 
 
@@ -15,6 +23,11 @@ class CarDealerApplication:
     ):
         self.database = database
         self.authentication_service = authentication_service
+        fleet_discount_calculator = FleetDiscountCalculator(database)
+        vehicle_availability_checker = VehicleAvailabilityChecker(database)
+        self.sales_desk = SalesDesk(database, fleet_discount_calculator, vehicle_availability_checker)
+        self.rental_desk = RentalDesk(database, fleet_discount_calculator, vehicle_availability_checker)
+        self.loan_desk = LoanDesk(database, self.sales_desk, self.rental_desk, AnnuityInstallmentCalculator())
         self.front_end_directory = Path(front_end_directory).resolve()
         self.records_per_page = records_per_page
         self.session_cookie_name = session_cookie_name
@@ -34,8 +47,8 @@ class CarDealerApplication:
         }
 
     @classmethod
-    def create_with_default_users_and_database_built_from_sql_scripts(cls, front_end_directory, sql_script_paths):
-        database = InMemoryDatabase.create_by_running_sql_scripts(sql_script_paths)
+    def create_with_default_users_and_database_built_from_sql_scripts(cls, front_end_directory, sql_directory):
+        database = InMemoryDatabase.create_from_sql_scripts_in_directory(sql_directory)
         authentication_service = AuthenticationService(
             UserRepository.with_default_application_users(),
             SessionStore(),
@@ -54,8 +67,8 @@ class CarDealerApplication:
             "tables": self.database.describe_first_page_of_all_tables(self.records_per_page),
         }
 
-    def describe_table_page_for_display(self, table_name, page_number):
-        return self.database.find_table_by_name(table_name).describe_page(page_number, self.records_per_page)
+    def describe_table_page_for_display(self, database_name, table_name, page_number):
+        return self.database.find_table(database_name, table_name).describe_page(page_number, self.records_per_page)
 
     def find_front_end_file_for_request_path(self, request_path):
         candidate_file = (self.front_end_directory / request_path.lstrip("/")).resolve()

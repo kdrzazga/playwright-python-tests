@@ -22,8 +22,9 @@ export class ApiClient {
         return this.#sendJsonRequest("GET", "/api/database/tables");
     }
 
-    async fetchPageOfTable(tableName, pageNumber) {
-        const tableUrl = `/api/database/tables/${encodeURIComponent(tableName)}?page=${pageNumber}`;
+    async fetchPageOfTable(databaseName, tableName, pageNumber) {
+        const tablePath = `${encodeURIComponent(databaseName)}/${encodeURIComponent(tableName)}`;
+        const tableUrl = `/api/database/tables/${tablePath}?page=${pageNumber}`;
         return this.#sendJsonRequest("GET", tableUrl);
     }
 
