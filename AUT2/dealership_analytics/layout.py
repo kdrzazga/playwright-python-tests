@@ -1,19 +1,42 @@
 from dash import dash_table, dcc, html
 
 from dealership_analytics.analytics_repository import VehicleStatus
+from dealership_analytics.aut1_api_client import Aut1UnavailableError
 
 
 def with_test_id(test_id):
     return {"data-testid": test_id}
 
 
+def describe_data_source_status(snapshot_provider, snapshot):
+    if snapshot is None:
+        return f"AUT1 at {snapshot_provider.source_description} is not reachable: {snapshot_provider.latest_error}"
+    status_text = f"Live data from AUT1 at {snapshot_provider.source_description}, refreshed {snapshot.fetched_at:%H:%M:%S}"
+    if snapshot_provider.latest_error:
+        status_text += f". Last refresh failed ({snapshot_provider.latest_error}); showing the previous data"
+    return status_text
+
+
 class DashboardLayoutBuilder:
-    def __init__(self, repository, records_per_table_page=15, factory_slider_mark_interval_years=20):
+    def __init__(
+        self,
+        repository,
+        snapshot_provider,
+        refresh_interval_seconds,
+        records_per_table_page=15,
+        factory_slider_mark_interval_years=20,
+    ):
         self.repository = repository
+        self.snapshot_provider = snapshot_provider
+        self.refresh_interval_seconds = refresh_interval_seconds
         self.records_per_table_page = records_per_table_page
         self.factory_slider_mark_interval_years = factory_slider_mark_interval_years
 
     def build_layout(self):
+        try:
+            snapshot = self.snapshot_provider.current_snapshot()
+        except Aut1UnavailableError as error:
+            return self._build_aut1_unavailable_layout(error)
         return html.Div(
             className="dashboard",
             children=[
@@ -26,6 +49,19 @@ class DashboardLayoutBuilder:
                             className="muted-text",
                             **with_test_id("as-of-date"),
                         ),
+                        html.Div(
+                            className="data-source-bar",
+                            children=[
+                                html.Span(
+                                    describe_data_source_status(self.snapshot_provider, snapshot),
+                                    id="data-source-status",
+                                    **with_test_id("data-source-status"),
+                                ),
+                                html.Button("Refresh now", id="refresh-data-button", className="secondary-button"),
+                            ],
+                        ),
+                        dcc.Interval(id="data-refresh-interval", interval=self.refresh_interval_seconds * 1000),
+                        dcc.Store(id="data-version", data=snapshot.fingerprint()),
                     ],
                 ),
                 dcc.Tabs(
@@ -252,6 +288,22 @@ class DashboardLayoutBuilder:
                     ],
                 ),
                 dcc.Graph(id="factories-operating-per-year-graph"),
+            ],
+        )
+
+    def _build_aut1_unavailable_layout(self, error):
+        return html.Div(
+            className="dashboard",
+            children=[
+                html.H1("Dealership Analytics", **with_test_id("dashboard-title")),
+                html.Div(
+                    className="error-panel",
+                    **with_test_id("data-source-error"),
+                    children=[
+                        html.P(f"No data: {error}"),
+                        html.P(f"Start AUT1 at {self.snapshot_provider.source_description} and reload this page."),
+                    ],
+                ),
             ],
         )
 
