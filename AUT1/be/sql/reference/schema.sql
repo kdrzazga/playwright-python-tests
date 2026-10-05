@@ -48,6 +48,8 @@ CREATE TABLE reference.factories (
     opened_year  INTEGER NOT NULL CHECK (opened_year BETWEEN 1880 AND 2100),
     closed_year  INTEGER CHECK (closed_year IS NULL OR closed_year >= opened_year),
     active       BOOLEAN NOT NULL CHECK (active IN (0, 1)),
+    latitude     REAL    NOT NULL CHECK (latitude BETWEEN -90 AND 90),
+    longitude    REAL    NOT NULL CHECK (longitude BETWEEN -180 AND 180),
     CHECK ((active = 1) = (closed_year IS NULL))
 );
 
