@@ -163,6 +163,8 @@ class Factory:
     opened_year: int
     closed_year: int | None
     active: bool
+    latitude: float
+    longitude: float
 
 
 @dataclass(frozen=True)

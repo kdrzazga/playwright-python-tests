@@ -2,7 +2,7 @@
 
 UI tests for [the-internet.herokuapp.com](https://the-internet.herokuapp.com) using Playwright, pytest and a page object model (`pom/`).
 
-The repository also contains [AUT1](#aut1--car-sales-and-rental-app), a local car sales and rental web app to test against.
+The repository also contains two local applications to test against: [AUT1](#aut1--car-sales-and-rental-app), a car sales and rental web app, and [AUT2](#aut2--dealership-analytics-dash), a Dash analytics dashboard over the same data.
 
 ## Setup
 
@@ -220,3 +220,45 @@ from playwright.sync_api import expect
 
 expect.set_options(timeout=20_000)
 ```
+
+## AUT2 – dealership analytics (Dash)
+
+A [Dash](https://dash.plotly.com/) dashboard in `AUT2/` that analyses the AUT1 dealership data. It builds its own in-memory copy of the AUT1 databases from the same SQL scripts at startup, using AUT1's data layer, so both apps start from identical data. Changes made in a running AUT1 are not visible in AUT2.
+
+### Setup
+
+AUT2 needs Dash (which brings Flask and Plotly), unlike AUT1:
+
+```bash
+venv/Scripts/python -m pip install -r AUT2/requirements.txt
+```
+
+### Running the dashboard
+
+```bash
+venv/Scripts/python AUT2/app.py
+```
+
+Then open <http://127.0.0.1:8050/>.
+
+| Option | Default | Description |
+|---|---|---|
+| `--host` | `127.0.0.1` | Address to listen on. |
+| `--port` | `8050` | Port to listen on. |
+| `--aut1-backend-directory` | `AUT1/be` | AUT1 backend whose data layer builds the database. |
+| `--aut1-sql-directory` | `AUT1/be/sql` | AUT1 SQL scripts to load. |
+| `--as-of-date` | today | Date (`YYYY-MM-DD`) used for vehicle status (available / rented / sold) and as the default end of date ranges. Fix it in tests so results do not change from day to day. |
+| `--debug` | off | Dash debug mode with hot reload and the in-page error overlay. |
+
+### Tabs
+
+| Tab | Content |
+|---|---|
+| Overview | Brand checklist, **All brands** button and agreement date range; key figure cards; vehicles sold and rented per month; sales revenue by brand. Clicking a revenue bar narrows the brand checklist to that brand. |
+| Stock | Brand, engine and status filters; vehicles-by-status donut; a sortable, filterable vehicle table (15 rows per page). |
+| Loans | Loan status filter; financed principal by lender; loans table with instalments and total interest. |
+| Factories | Factory state and country filters; a year slider; a world map of factories operating in the selected year (green: still active, red: closed since); factories operating per year; clicking a map marker shows the factory's details. |
+
+Interactive Dash components have stable `id`s (for example `#overview-brand-checklist`, `#revenue-by-brand-graph`, `#stock-table`, `#factory-year-slider`, `#factory-map-graph`); containers carry `data-testid` attributes (for example `key-figure-vehicles_sold`, `stock-vehicle-count`, `factory-count`, `factory-detail-panel`, `factory-detail-name`).
+
+Every filter change is a round trip to the server, so wait for the updated content (for example the `factory-count` text) rather than asserting immediately after an interaction.
