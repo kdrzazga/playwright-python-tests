@@ -31,6 +31,22 @@ jobs:
       - name: Install Playwright browser
         run: python -m playwright install --with-deps ${{ matrix.browser }}
 
+      - name: Check reachability of the site under test
+        run: |
+          for url in \
+            https://the-internet.herokuapp.com/login \
+            https://the-internet.herokuapp.com/js/vendor/298279967.js \
+            https://the-internet.herokuapp.com/js/vendor/jquery-1.11.3.min.js \
+            https://the-internet.herokuapp.com/js/vendor/jquery-ui-1.11.4/jquery-ui.js \
+            https://the-internet.herokuapp.com/js/foundation/foundation.js \
+            https://the-internet.herokuapp.com/css/app.css \
+            https://log.optimizely.com/ \
+            https://rum.optimizely.com/; do
+            curl -s -o /dev/null --max-time 40 \
+              -w "HTTP %{http_code}  dns %{time_namelookup}s  connect %{time_connect}s  total %{time_total}s  $url\n" "$url" \
+              || echo "FAILED (curl exit $?)  $url"
+          done
+
       - name: Run tests
         run: python -m pytest -m smoke --browser ${{ matrix.browser }} --junitxml=reports/junit-${{ matrix.browser }}.xml
 
