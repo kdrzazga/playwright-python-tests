@@ -1,0 +1,218 @@
+:root {
+    --background-color: #f3f5f8;
+    --surface-color: #ffffff;
+    --text-color: #1f2933;
+    --muted-text-color: #616e7c;
+    --accent-color: #1f6feb;
+    --accent-hover-color: #1858c4;
+    --border-color: #d9dee5;
+    --error-color: #c62828;
+    --error-background-color: #fdecea;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--background-color);
+    color: var(--text-color);
+}
+
+.centered-layout {
+    display: flex;
+    min-height: 100vh;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.card {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 32px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.login-card {
+    width: 100%;
+    max-width: 360px;
+}
+
+.login-card h1 {
+    margin-top: 0;
+    font-size: 1.5rem;
+    text-align: center;
+}
+
+form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+label {
+    font-size: 0.9rem;
+    color: var(--muted-text-color);
+}
+
+input {
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 1rem;
+}
+
+input:focus {
+    outline: 2px solid var(--accent-color);
+    outline-offset: -1px;
+}
+
+button {
+    font: inherit;
+    cursor: pointer;
+    border-radius: 6px;
+    padding: 10px 16px;
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.primary-button {
+    background: var(--accent-color);
+    color: #ffffff;
+    border: none;
+}
+
+.primary-button:hover:not(:disabled) {
+    background: var(--accent-hover-color);
+}
+
+.login-card .primary-button {
+    margin-top: 8px;
+}
+
+.secondary-button {
+    background: transparent;
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+
+.error-message {
+    margin: 4px 0 0;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: var(--error-background-color);
+    color: var(--error-color);
+    font-size: 0.9rem;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+.top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 24px;
+    background: var(--surface-color);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.top-bar-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.app-name {
+    font-weight: 600;
+}
+
+.page-content {
+    padding: 24px;
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.muted-text,
+.record-count-summary {
+    color: var(--muted-text-color);
+}
+
+.database-table-section {
+    margin-top: 32px;
+    overflow-x: auto;
+}
+
+.database-group {
+    margin-top: 40px;
+    padding-top: 8px;
+    border-top: 3px solid var(--accent-color);
+}
+
+.database-group h2 {
+    margin: 8px 0 0;
+    letter-spacing: 0.08em;
+    color: var(--accent-color);
+}
+
+.database-table-section h3 {
+    margin-bottom: 4px;
+}
+
+.replica-notice {
+    display: inline-block;
+    margin: 4px 0;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--background-color);
+    border: 1px dashed var(--border-color);
+    color: var(--muted-text-color);
+    font-size: 0.85rem;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+}
+
+th,
+td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.pagination-controls button {
+    padding: 6px 12px;
+}
+
+.page-indicator {
+    padding: 0 8px;
+    color: var(--muted-text-color);
+}
+
+th {
+    background: var(--background-color);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
