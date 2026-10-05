@@ -1,5 +1,6 @@
 from database_errors import RecordNotFoundError
 from records import CompanyType, LoanStatus, OccupationPeriod
+from simulated_load import subject_to_simulated_load
 
 
 class EmptyVehicleSelectionError(ValueError):
@@ -64,14 +65,26 @@ class VehicleAvailabilityChecker:
             yield sale_row["vehicle_id"], "sold", sale_agreement.id, sale_agreement.occupation_period()
 
 
-class FleetDiscountCalculator:
+class DatabaseBackedService:
+    @property
+    def simulated_load(self):
+        return self.database.simulated_load
+
+    @property
+    def touches_reference_data(self):
+        return False
+
+
+class FleetDiscountCalculator(DatabaseBackedService):
     def __init__(self, database, commercial_policy_id=1):
         self.database = database
         self.commercial_policy_id = commercial_policy_id
 
+    @subject_to_simulated_load
     def load_commercial_policy(self):
         return self.database.commercial_policy.find_record_by_id(self.commercial_policy_id)
 
+    @subject_to_simulated_load
     def determine_discount_pct(self, customer, vehicle_count):
         commercial_policy = self.load_commercial_policy()
         if not customer.is_institutional or not commercial_policy.qualifies_as_fleet(vehicle_count):
@@ -82,7 +95,7 @@ class FleetDiscountCalculator:
         return commercial_policy.default_fleet_discount_pct
 
 
-class AgreementDesk:
+class AgreementDesk(DatabaseBackedService):
     def __init__(self, database, fleet_discount_calculator, vehicle_availability_checker):
         self.database = database
         self.fleet_discount_calculator = fleet_discount_calculator
@@ -120,6 +133,7 @@ class AgreementDesk:
 
 
 class SalesDesk(AgreementDesk):
+    @subject_to_simulated_load
     def sell_vehicles_to_customer(self, customer_id, vehicle_ids, sale_date):
         self._ensure_vehicle_selection_is_valid(vehicle_ids)
         customer = self._load_existing_customer(customer_id)
@@ -153,6 +167,7 @@ class SalesDesk(AgreementDesk):
         )
         return self.database.sale_agreements.find_record_by_id(sale_agreement_id)
 
+    @subject_to_simulated_load
     def calculate_total_price_after_discount_eur(self, sale_agreement_id):
         sale_agreement = self.database.sale_agreements.find_record_by_id(sale_agreement_id)
         total_list_price_eur = self.database.connection.fetch_single_row(
@@ -163,6 +178,7 @@ class SalesDesk(AgreementDesk):
 
 
 class RentalDesk(AgreementDesk):
+    @subject_to_simulated_load
     def rent_vehicles_to_customer(
         self,
         customer_id,
@@ -211,11 +227,13 @@ class RentalDesk(AgreementDesk):
         )
         return self.database.rental_agreements.find_record_by_id(rental_agreement_id)
 
+    @subject_to_simulated_load
     def terminate_rental_agreement(self, rental_agreement_id, terminated_on):
         return self.database.rental_agreements.update_record_by_primary_key(
             rental_agreement_id, terminated_on=terminated_on.isoformat()
         )
 
+    @subject_to_simulated_load
     def calculate_daily_total_after_discount_eur(self, rental_agreement_id):
         rental_agreement = self.database.rental_agreements.find_record_by_id(rental_agreement_id)
         total_daily_rate_eur = self.database.connection.fetch_single_row(
@@ -225,6 +243,7 @@ class RentalDesk(AgreementDesk):
         )[0]
         return self._apply_discount(total_daily_rate_eur, rental_agreement.discount_pct)
 
+    @subject_to_simulated_load
     def calculate_initial_term_cost_after_discount_eur(self, rental_agreement_id):
         rental_agreement = self.database.rental_agreements.find_record_by_id(rental_agreement_id)
         initial_term_days = (rental_agreement.end_date - rental_agreement.start_date).days + 1
@@ -239,7 +258,7 @@ class AnnuityInstallmentCalculator:
         return round(principal_eur * monthly_interest_rate / (1 - (1 + monthly_interest_rate) ** -term_months), 2)
 
 
-class LoanDesk:
+class LoanDesk(DatabaseBackedService):
     def __init__(self, database, sales_desk, rental_desk, installment_calculator):
         self.database = database
         self.sales_desk = sales_desk
@@ -250,6 +269,7 @@ class LoanDesk:
             "rental_agreement_id": CompanyType.LEASING_COMPANY,
         }
 
+    @subject_to_simulated_load
     def finance_sale_agreement(
         self, sale_agreement_id, lender_company_id, start_date, annual_interest_rate_pct, term_months, down_payment_eur=0
     ):
@@ -266,6 +286,7 @@ class LoanDesk:
             down_payment_eur,
         )
 
+    @subject_to_simulated_load
     def finance_rental_agreement(
         self, rental_agreement_id, lender_company_id, start_date, annual_interest_rate_pct, term_months, down_payment_eur=0
     ):
@@ -284,9 +305,11 @@ class LoanDesk:
             down_payment_eur,
         )
 
+    @subject_to_simulated_load
     def mark_loan_repaid(self, loan_id):
         return self.database.loans.update_record_by_primary_key(loan_id, loan_status=LoanStatus.REPAID.value)
 
+    @subject_to_simulated_load
     def mark_loan_defaulted(self, loan_id):
         return self.database.loans.update_record_by_primary_key(loan_id, loan_status=LoanStatus.DEFAULTED.value)
 

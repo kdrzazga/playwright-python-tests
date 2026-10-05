@@ -14,7 +14,13 @@
 </header>
 <main class="page-content">
     <h1 data-testid="welcome-message">Welcome</h1>
-    <button type="button" class="primary-button" data-testid="show-whole-db-button" hidden>Show whole DB</button>
+    <div class="home-actions">
+        <button type="button" class="primary-button" data-testid="show-whole-db-button" hidden>Show whole DB</button>
+        <button type="button" class="primary-button" data-testid="vehicles-button" hidden>Vehicles</button>
+    </div>
 </main>
+<footer class="session-footer" data-testid="session-footer" hidden>
+    Logged in as <strong data-testid="footer-username"></strong> on <span data-testid="footer-login-time"></span>
+</footer>
 </body>
 </html>

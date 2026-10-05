@@ -1,6 +1,12 @@
+CREATE TABLE dealership.brands (
+    id   INTEGER PRIMARY KEY,
+    code TEXT NOT NULL UNIQUE CHECK (code <> '' AND code NOT GLOB '*[^a-z0-9]*'),
+    name TEXT NOT NULL UNIQUE
+);
+
 CREATE TABLE dealership.vehicles (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-    brand                 TEXT    NOT NULL,
+    brand                 TEXT    NOT NULL REFERENCES brands (name),
     model                 TEXT    NOT NULL,
     engine                TEXT    NOT NULL CHECK (engine IN ('diesel', 'oil', 'electric')),
     manufacture_year      INTEGER NOT NULL,

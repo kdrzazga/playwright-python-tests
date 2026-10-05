@@ -1,47 +1,7 @@
 import { ApiClient, PageNavigator } from "./api_client.js";
 import { LogoutButton } from "./logout_button.js";
-
-class PaginationControls {
-    constructor(tableKey, onPageRequested) {
-        this.tableKey = tableKey;
-        this.onPageRequested = onPageRequested;
-    }
-
-    buildNavigationElement(pageNumber, totalPageCount) {
-        const navigation = document.createElement("nav");
-        navigation.className = "pagination-controls";
-        navigation.dataset.testid = `pagination-${this.tableKey}`;
-        const isFirstPage = pageNumber === 1;
-        const isLastPage = pageNumber === totalPageCount;
-        navigation.append(
-            this.#buildNavigationButton("first", "« First", 1, isFirstPage),
-            this.#buildNavigationButton("previous", "‹ Previous", pageNumber - 1, isFirstPage),
-            this.#buildPageIndicator(pageNumber, totalPageCount),
-            this.#buildNavigationButton("next", "Next ›", pageNumber + 1, isLastPage),
-            this.#buildNavigationButton("last", "Last »", totalPageCount, isLastPage),
-        );
-        return navigation;
-    }
-
-    #buildNavigationButton(buttonRole, buttonLabel, targetPageNumber, isDisabled) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "secondary-button";
-        button.textContent = buttonLabel;
-        button.disabled = isDisabled;
-        button.dataset.testid = `pagination-${buttonRole}-${this.tableKey}`;
-        button.addEventListener("click", () => this.onPageRequested(targetPageNumber));
-        return button;
-    }
-
-    #buildPageIndicator(pageNumber, totalPageCount) {
-        const pageIndicator = document.createElement("span");
-        pageIndicator.className = "page-indicator";
-        pageIndicator.dataset.testid = `pagination-page-indicator-${this.tableKey}`;
-        pageIndicator.textContent = `Page ${pageNumber} of ${totalPageCount}`;
-        return pageIndicator;
-    }
-}
+import { PaginationControls } from "./pagination_controls.js";
+import { SessionFooter } from "./session_footer.js";
 
 class DatabaseTableView {
     constructor(apiClient, pageNavigator, initialTableDescription) {
@@ -148,9 +108,10 @@ class DatabaseTableView {
 }
 
 class DatabasePage {
-    constructor(apiClient, pageNavigator) {
+    constructor(apiClient, pageNavigator, sessionFooter) {
         this.apiClient = apiClient;
         this.pageNavigator = pageNavigator;
+        this.sessionFooter = sessionFooter;
         this.tablesContainer = document.querySelector("[data-testid='tables-container']");
         this.recordLimitNotice = document.querySelector("[data-testid='record-limit-notice']");
         this.backToHomeButton = document.querySelector("[data-testid='back-to-home-button']");
@@ -159,7 +120,11 @@ class DatabasePage {
     async renderFirstPageOfAllTables() {
         this.backToHomeButton.addEventListener("click", () => this.pageNavigator.goToHomePage());
         try {
-            const databaseDescription = await this.apiClient.fetchFirstPageOfAllTables();
+            const [loggedInUser, databaseDescription] = await Promise.all([
+                this.apiClient.fetchLoggedInUser(),
+                this.apiClient.fetchFirstPageOfAllTables(),
+            ]);
+            this.sessionFooter.renderForLoggedInUser(loggedInUser);
             this.recordLimitNotice.textContent = `${databaseDescription.records_per_page} records are shown per page`;
             this.tablesContainer.replaceChildren(...this.#buildDatabaseGroups(databaseDescription.tables));
         } catch {
@@ -195,4 +160,4 @@ class DatabasePage {
 const apiClient = new ApiClient();
 const pageNavigator = new PageNavigator();
 new LogoutButton(apiClient, pageNavigator).startListeningForClicks();
-new DatabasePage(apiClient, pageNavigator).renderFirstPageOfAllTables();
+new DatabasePage(apiClient, pageNavigator, new SessionFooter()).renderFirstPageOfAllTables();

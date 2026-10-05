@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from authentication import AuthenticationService, SessionStore, UserRepository
+from authentication import AuthenticationService, DatabaseUserRepository, Pbkdf2PasswordHasher, SessionStore
 from commerce import (
     AnnuityInstallmentCalculator,
     FleetDiscountCalculator,
@@ -10,6 +10,9 @@ from commerce import (
     VehicleAvailabilityChecker,
 )
 from database import InMemoryDatabase
+from records import PermissionName
+from simulated_load import NoSimulatedLoad, RandomReferenceDataLoad
+from vehicle_catalog import VehicleCatalog
 
 
 class CarDealerApplication:
@@ -30,11 +33,16 @@ class CarDealerApplication:
         self.loan_desk = LoanDesk(database, self.sales_desk, self.rental_desk, AnnuityInstallmentCalculator())
         self.front_end_directory = Path(front_end_directory).resolve()
         self.records_per_page = records_per_page
+        self.vehicle_catalog = VehicleCatalog(database, records_per_page)
+        self.vehicles_api_path = "/api/vehicles"
         self.session_cookie_name = session_cookie_name
         self.login_page_path = "/login_page.html"
+        self.login_time_format = "%Y-%m-%d %H:%M:%S"
         self.single_table_api_path_prefix = "/api/database/tables/"
         self.page_access_rules = {
-            "/home_page.html": lambda user: user.can_access_front_end,
+            "/home_page.html": self._user_may_use_front_end,
+            "/vehicles_page.html": lambda user: self._user_may_use_front_end(user)
+            and user.has_permission(PermissionName.VEHICLE_VIEW),
             "/database_page.html": lambda user: user.can_view_whole_database,
         }
         self.content_types_by_file_suffix = {
@@ -47,13 +55,20 @@ class CarDealerApplication:
         }
 
     @classmethod
-    def create_with_default_users_and_database_built_from_sql_scripts(cls, front_end_directory, sql_directory):
-        database = InMemoryDatabase.create_from_sql_scripts_in_directory(sql_directory)
+    def create_with_default_users_and_database_built_from_sql_scripts(
+        cls, front_end_directory, sql_directory, extra_load_enabled=False
+    ):
+        simulated_load = RandomReferenceDataLoad() if extra_load_enabled else NoSimulatedLoad()
+        database = InMemoryDatabase.create_from_sql_scripts_in_directory(sql_directory, simulated_load=simulated_load)
         authentication_service = AuthenticationService(
-            UserRepository.with_default_application_users(),
+            DatabaseUserRepository(database),
             SessionStore(),
+            Pbkdf2PasswordHasher(),
         )
         return cls(database, authentication_service, front_end_directory)
+
+    def _user_may_use_front_end(self, user):
+        return self.authentication_service.user_may_use_front_end(user)
 
     def is_protected_page(self, request_path):
         return request_path in self.page_access_rules
