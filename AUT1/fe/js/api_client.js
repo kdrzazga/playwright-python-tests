@@ -28,6 +28,22 @@ export class ApiClient {
         return this.#sendJsonRequest("GET", tableUrl);
     }
 
+    async fetchPageOfVisibleVehicles(pageNumber) {
+        return this.#sendJsonRequest("GET", `/api/vehicles?page=${pageNumber}`);
+    }
+
+    async fetchVehicleFormOptions() {
+        return this.#sendJsonRequest("GET", "/api/vehicles/form-options");
+    }
+
+    async addVehicle(vehicleFields) {
+        return this.#sendJsonRequest("POST", "/api/vehicles", vehicleFields);
+    }
+
+    async removeVehicle(vehicleId) {
+        return this.#sendJsonRequest("DELETE", `/api/vehicles/${vehicleId}`);
+    }
+
     async #sendJsonRequest(method, url, requestBody) {
         const response = await fetch(url, {
             method,
@@ -48,6 +64,7 @@ export class PageNavigator {
         this.loginPageUrl = "/login_page.html";
         this.homePageUrl = "/home_page.html";
         this.databasePageUrl = "/database_page.html";
+        this.vehiclesPageUrl = "/vehicles_page.html";
     }
 
     goToLoginPage() {
@@ -60,5 +77,9 @@ export class PageNavigator {
 
     goToDatabasePage() {
         window.location.assign(this.databasePageUrl);
+    }
+
+    goToVehiclesPage() {
+        window.location.assign(this.vehiclesPageUrl);
     }
 }

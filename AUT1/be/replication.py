@@ -80,6 +80,9 @@ class ReplicatedReferenceTable:
             )
         self._copy_master_rows_to_replica(transaction, f"WHERE {self.primary_key_column_name} = ?", (primary_key_value,))
 
+    def copy_master_record_to_replica_within_transaction(self, transaction, primary_key_value):
+        self._copy_master_rows_to_replica(transaction, f"WHERE {self.primary_key_column_name} = ?", (primary_key_value,))
+
     def _copy_master_rows_to_replica(self, transaction, master_row_filter, filter_parameters):
         column_list = ", ".join(self.master_table.column_names)
         column_updates_on_existing_replica_row = ", ".join(

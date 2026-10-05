@@ -134,7 +134,7 @@ The databases live in memory and are rebuilt from the SQL scripts on every start
 | `--host` | `127.0.0.1` | Address to listen on. |
 | `--port` | `8000` | Port to listen on. |
 | `--front-end-directory` | `AUT1/fe` | Directory with the HTML, JS and CSS files. |
-| `--sql-directory` | `AUT1/be/sql` | Directory with `reference/` and `dealership/` subdirectories, each holding `schema.sql` and `seed_data.sql`. Point it at a copy to run with a different data set. |
+| `--sql-directory` | `AUT1/be/sql` | Directory with `reference/`, `dealership/` and `security/` subdirectories, each holding `schema.sql` and `seed_data.sql`. Point it at a copy to run with a different data set. |
 | `--extra-load`, `-el` | off | Simulates heavy load: every call that touches reference data rolls 3 times, each roll with a ~15% chance of a 2–5 s delay. See [Extra load](#extra-load). |
 | `-h`, `--help` | | Prints the options. |
 
@@ -146,42 +146,64 @@ python AUT1/be/server.py --sql-directory path/to/test_sql
 
 ### Users
 
-Only `admin` may use the frontend; the other users exist but get a "not allowed to access the front-end" error on login.
+Users, permissions and grants live in the SECURITY database (passwords stored as salted PBKDF2 hashes). Logging in to the frontend requires the `frontend.access` permission; what each user sees there follows from their other permissions.
 
-| Username | Password | Frontend access |
-|---|---|---|
-| `admin` | `admin` | Yes, including **Show whole DB** |
-| `superuser` | `superuser` | No |
-| `user_vw` | `user_vw` | No |
-| `user_tesla` | `user_tesla` | No |
-| `viewer` | `viewer` | No |
+| Username | Password | Role | Permissions | Frontend |
+|---|---|---|---|---|
+| `admin` | `admin` | admin | all except `vehicle.add` (23), including `view_db_tables` | yes |
+| `superuser` | `superuser` | superuser | all except `view_db_tables` (23) | yes |
+| `dealer_tesla_vw` | `dealer_tesla_vw` | dealer | the four `*.view` permissions, `vehicle.add`, `vehicle.remove`, `brand.tesla.access`, `brand.vw.access`, `frontend.access` (9) | yes |
+| `viewer` | `viewer` | viewer | the four `*.view` permissions, all six brands and `frontend.access` (11) | yes |
+| `user_vw` | `user_vw` | viewer | the four `*.view` permissions, `brand.vw.access` and `frontend.access` (6) | yes |
+| `obsolete_vw` | `obsolete_vw` | viewer | `vehicle.view` and `brand.vw.access` (2) | no: correct credentials get 403 |
+
+Available permissions: `frontend.access`; `view_db_tables`; `vehicle.*`, `rental.*`, `sell.*` and `loan.*`, each with `view`, `add`, `modify` and `remove`; one `brand.<code>.access` per brand: `vw`, `toyota`, `mercedes`, `tesla`, `skoda`, `bmw`.
+
+What each role may hold is data in `security.role_permission_rules` (`LIKE` patterns) and enforced by triggers:
+
+| Role | Allowed permissions |
+|---|---|
+| `admin` | everything except `vehicle.add` |
+| `superuser` | everything except `view_db_tables` |
+| `dealer` | `vehicle.*`, `rental.*`, `sell.*`, `loan.view`, `brand.*.access`, `frontend.access` |
+| `viewer` | `*.view`, `brand.*.access`, `frontend.access` |
+
+Granting a disallowed permission, changing a user's role while they hold permissions the new role does not allow, or deleting a rule that existing grants depend on is rejected.
+
+**Brand access.** Every vehicle action needs both the action permission and access to the vehicle's brand. Vehicles of other brands are invisible to the user: they are left out of lists, and removing one answers 404 as if it did not exist. Adding a vehicle of a brand the user cannot access answers 403. The checks run in the backend, so they also apply to direct API calls.
 
 ### Pages
 
 | Page | Content |
 |---|---|
 | `/login_page.html` | Login form. |
-| `/home_page.html` | Welcome message, **Show whole DB** button (admin only), logout. |
+| `/home_page.html` | Welcome message, **Show whole DB** button (needs `view_db_tables`), **Vehicles** button (needs `vehicle.view`), logout. |
+| `/vehicles_page.html` | Vehicles of the brands the user can access, 15 per page. **Remove** buttons with `vehicle.remove`; an **Add vehicle** form with `vehicle.add` (brand choices limited to accessible brands). |
 | `/database_page.html` | All tables grouped by database, 15 records per page with First / Previous / Next / Last navigation. |
 
-The home and database pages show a footer: *Logged in as **user** on yyyy-mm-dd hh:mm:ss*. Opening them without a session redirects to the login page. Interactive elements carry `data-testid` attributes, for example `login-button`, `show-whole-db-button`, `table-dealership-vehicles`, `row-reference-factories-1`, `pagination-next-dealership-vehicles`, `session-footer`.
+The home, database and vehicles pages show a footer: *Logged in as **user** on yyyy-mm-dd hh:mm:ss*. Opening them without a session redirects to the login page. Interactive elements carry `data-testid` attributes, for example `login-button`, `show-whole-db-button`, `table-dealership-vehicles`, `row-reference-factories-1`, `pagination-next-dealership-vehicles`, `session-footer`, `vehicles-button`, `vehicle-row-16`, `remove-vehicle-16`, `vehicle-field-brand`, `add-vehicle-button`, `vehicle-status-message`, `vehicle-error-message`.
 
 ### API
 
 | Method and path | Description |
 |---|---|
-| `POST /api/login` | Body `{"username": ..., "password": ...}`. 401 for wrong credentials, 403 for users not allowed on the frontend. Sets the session cookie. |
+| `POST /api/login` | Body `{"username": ..., "password": ...}`. 401 for wrong credentials, 403 for users without `frontend.access` (e.g. `obsolete_vw`). Sets the session cookie. |
 | `POST /api/logout` | Ends the session. |
 | `GET /api/session` | Logged-in user and `logged_in_at`; 401 when not logged in. |
-| `GET /api/database/tables` | First page of every table (admin only). |
+| `GET /api/database/tables` | First page of every table (needs `view_db_tables`). |
 | `GET /api/database/tables/<database>/<table>?page=N` | One page of one table, e.g. `/api/database/tables/dealership/vehicles?page=2`. 404 for an unknown table, 400 for an invalid page. |
+| `GET /api/vehicles?page=N` | One page of vehicles of the user's accessible brands (needs `vehicle.view`). |
+| `GET /api/vehicles/form-options` | Accessible brands and allowed values for the add form (needs `vehicle.add`). |
+| `POST /api/vehicles` | Adds a vehicle from a JSON object with all vehicle fields; `registration` is optional. 201 on success, 400 for invalid data, 403 without `vehicle.add` or brand access. |
+| `DELETE /api/vehicles/<id>` | Removes a vehicle (needs `vehicle.remove`). 404 if it does not exist or its brand is not accessible, 409 if it is part of a sale or rental. |
 
 ### Databases
 
-Two in-memory SQLite databases, each built from its own scripts in `AUT1/be/sql/`:
+Three in-memory SQLite databases, each built from its own scripts in `AUT1/be/sql/`:
 
-- **REFERENCE** – rarely changing master data: `customers` with the `individual_customers` and `institutional_customers` subtypes, `companies` (banks and leasing companies), `commercial_policy` (fleet size, default fleet discount, default rental prolongation) and `factories`.
-- **DEALERSHIP** – `vehicles`, `sale_agreements` / `sales`, `rental_agreements` / `rentals`, `loans`, plus read-only replicas of the REFERENCE tables it references, so all foreign keys are enforced. Writing to a replica directly is rejected; changes go to REFERENCE and are replicated in the same transaction.
+- **REFERENCE** – rarely changing master data: `customers` with the `individual_customers` and `institutional_customers` subtypes, `companies` (banks and leasing companies), `commercial_policy` (fleet size, default fleet discount, default rental prolongation), `factories` and `brands`.
+- **DEALERSHIP** – `vehicles` (`brand` references `brands`), `sale_agreements` / `sales`, `rental_agreements` / `rentals`, `loans`, plus read-only replicas of the REFERENCE tables it references, so all foreign keys are enforced. Writing to a replica directly is rejected; changes go to REFERENCE and are replicated in the same transaction.
+- **SECURITY** – `users` (password hashes are hidden on the database page), `permissions` (brand permissions reference `brands`), `role_permission_rules`, `user_permission`, and read-only replicas of `companies` and `brands` so `users.company_id` and `permissions.brand_id` have enforced foreign keys.
 
 ### Extra load
 

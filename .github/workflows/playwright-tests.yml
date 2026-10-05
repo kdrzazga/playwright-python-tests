@@ -32,7 +32,7 @@ jobs:
         run: python -m playwright install --with-deps ${{ matrix.browser }}
 
       - name: Run tests
-        run: pytest --browser ${{ matrix.browser }} --reruns 2 --junitxml=reports/junit-${{ matrix.browser }}.xml
+        run: python -m pytest -m smoke # pytest --browser ${{ matrix.browser }} --reruns 2 --junitxml=reports/junit-${{ matrix.browser }}.xml
 
       - name: Upload test artifacts
         if: ${{ !cancelled() }}

@@ -9,6 +9,7 @@ class HomePage {
         this.sessionFooter = sessionFooter;
         this.welcomeMessage = document.querySelector("[data-testid='welcome-message']");
         this.showWholeDatabaseButton = document.querySelector("[data-testid='show-whole-db-button']");
+        this.vehiclesButton = document.querySelector("[data-testid='vehicles-button']");
     }
 
     async renderForLoggedInUser() {
@@ -16,10 +17,19 @@ class HomePage {
             const loggedInUser = await this.apiClient.fetchLoggedInUser();
             this.welcomeMessage.textContent = `Welcome, ${loggedInUser.username}`;
             this.#showWholeDatabaseButtonWhenUserIsAllowed(loggedInUser);
+            this.#showVehiclesButtonWhenUserMayViewVehicles(loggedInUser);
             this.sessionFooter.renderForLoggedInUser(loggedInUser);
         } catch {
             this.pageNavigator.goToLoginPage();
         }
+    }
+
+    #showVehiclesButtonWhenUserMayViewVehicles(loggedInUser) {
+        if (!loggedInUser.permissions.includes("vehicle.view")) {
+            return;
+        }
+        this.vehiclesButton.hidden = false;
+        this.vehiclesButton.addEventListener("click", () => this.pageNavigator.goToVehiclesPage());
     }
 
     #showWholeDatabaseButtonWhenUserIsAllowed(loggedInUser) {

@@ -6,6 +6,12 @@ from urllib.parse import parse_qs, urlsplit
 
 from authentication import FrontEndAccessDeniedError, InvalidCredentialsError
 from database_errors import PageOutOfRangeError, TableNotFoundError
+from vehicle_catalog import (
+    InvalidVehicleDataError,
+    VehicleActionNotPermittedError,
+    VehicleNotVisibleError,
+    VehicleStillReferencedError,
+)
 
 
 class MalformedRequestBodyError(ValueError):
@@ -30,6 +36,8 @@ class CarDealerRequestHandler(BaseHTTPRequestHandler):
             "/": self._redirect_to_login_page,
             "/api/session": self._respond_with_logged_in_user,
             "/api/database/tables": self._respond_with_first_page_of_all_tables,
+            self.application.vehicles_api_path: self._respond_with_page_of_visible_vehicles,
+            f"{self.application.vehicles_api_path}/form-options": self._respond_with_vehicle_form_options,
         }
         if request_path in api_routes:
             api_routes[request_path]()
@@ -44,6 +52,7 @@ class CarDealerRequestHandler(BaseHTTPRequestHandler):
         api_routes = {
             "/api/login": self._log_in_and_set_session_cookie,
             "/api/logout": self._log_out_and_clear_session_cookie,
+            self.application.vehicles_api_path: self._add_vehicle_from_request_body,
         }
         route = api_routes.get(self._read_request_path())
         if route is None:
@@ -53,6 +62,60 @@ class CarDealerRequestHandler(BaseHTTPRequestHandler):
             route()
         except MalformedRequestBodyError as error:
             self._respond_with_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+
+    def do_DELETE(self):
+        vehicle_path_prefix = f"{self.application.vehicles_api_path}/"
+        request_path = self._read_request_path()
+        vehicle_id_text = request_path.removeprefix(vehicle_path_prefix)
+        if not request_path.startswith(vehicle_path_prefix) or not vehicle_id_text.isdigit():
+            self._respond_with_json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
+            return
+        self._respond_with_result_of_vehicle_catalog_action(
+            lambda user: self._remove_vehicle_and_describe_removal(user, int(vehicle_id_text))
+        )
+
+    def _respond_with_page_of_visible_vehicles(self):
+        try:
+            page_number = self._read_page_number_from_query_string()
+        except PageOutOfRangeError as error:
+            self._respond_with_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+            return
+        self._respond_with_result_of_vehicle_catalog_action(
+            lambda user: self.application.vehicle_catalog.describe_page_of_vehicles_visible_to(user, page_number)
+        )
+
+    def _respond_with_vehicle_form_options(self):
+        self._respond_with_result_of_vehicle_catalog_action(self.application.vehicle_catalog.describe_form_options_for)
+
+    def _add_vehicle_from_request_body(self):
+        submitted_vehicle_fields = self._read_json_object_from_request_body()
+        self._respond_with_result_of_vehicle_catalog_action(
+            lambda user: self.application.vehicle_catalog.add_vehicle_for(user, submitted_vehicle_fields),
+            success_status=HTTPStatus.CREATED,
+        )
+
+    def _remove_vehicle_and_describe_removal(self, user, vehicle_id):
+        self.application.vehicle_catalog.remove_vehicle_for(user, vehicle_id)
+        return {"removed_vehicle_id": vehicle_id}
+
+    def _respond_with_result_of_vehicle_catalog_action(self, catalog_action, success_status=HTTPStatus.OK):
+        logged_in_user = self._find_logged_in_user()
+        if logged_in_user is None:
+            self._respond_with_json(HTTPStatus.UNAUTHORIZED, {"error": "Not logged in"})
+            return
+        status_by_error_type = {
+            VehicleActionNotPermittedError: HTTPStatus.FORBIDDEN,
+            VehicleNotVisibleError: HTTPStatus.NOT_FOUND,
+            InvalidVehicleDataError: HTTPStatus.BAD_REQUEST,
+            PageOutOfRangeError: HTTPStatus.BAD_REQUEST,
+            VehicleStillReferencedError: HTTPStatus.CONFLICT,
+        }
+        try:
+            result = catalog_action(logged_in_user)
+        except tuple(status_by_error_type) as error:
+            self._respond_with_json(status_by_error_type[type(error)], {"error": str(error)})
+        else:
+            self._respond_with_json(success_status, result)
 
     def _log_in_and_set_session_cookie(self):
         credentials = self._read_json_object_from_request_body()

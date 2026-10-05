@@ -9,33 +9,69 @@ from simulated_load import NoSimulatedLoad, subject_to_simulated_load
 
 
 class ManyToOneRelationship:
-    def __init__(self, relationship_name, foreign_key_column_name, related_table, displayed_related_column_names):
+    def __init__(
+        self,
+        relationship_name,
+        foreign_key_column_name,
+        related_table,
+        displayed_related_column_names,
+        displayed_column_labels=None,
+    ):
         self.relationship_name = relationship_name
         self.foreign_key_column_name = foreign_key_column_name
         self.related_table = related_table
         self.displayed_related_column_names = displayed_related_column_names
+        self.displayed_column_labels = displayed_column_labels or {}
 
     @property
     def displayed_column_names(self):
         return tuple(
-            self._prefix_with_relationship_name(related_column_name)
+            self._label_for_related_column(related_column_name)
             for related_column_name in self.displayed_related_column_names
         )
 
     def load_related_record_of(self, record):
-        return self.related_table.find_record_by_id(getattr(record, self.foreign_key_column_name))
+        foreign_key_value = getattr(record, self.foreign_key_column_name)
+        if foreign_key_value is None:
+            return None
+        return self.related_table.find_record_by_id(foreign_key_value)
 
     def describe_related_record_of(self, record):
         related_record = self.load_related_record_of(record)
         return {
-            self._prefix_with_relationship_name(related_column_name): self.related_table.convert_to_json_compatible_value(
-                getattr(related_record, related_column_name)
-            )
+            self._label_for_related_column(related_column_name): None
+            if related_record is None
+            else self.related_table.convert_to_json_compatible_value(getattr(related_record, related_column_name))
             for related_column_name in self.displayed_related_column_names
         }
 
-    def _prefix_with_relationship_name(self, related_column_name):
-        return f"{self.relationship_name}_{related_column_name}"
+    def _label_for_related_column(self, related_column_name):
+        return self.displayed_column_labels.get(related_column_name, f"{self.relationship_name}_{related_column_name}")
+
+
+class NoRowFilter:
+    def build_where_clause(self):
+        return ""
+
+    def query_parameters(self):
+        return ()
+
+
+class ColumnValueInListFilter:
+    def __init__(self, column_name, allowed_values):
+        self.column_name = column_name
+        self.allowed_values = tuple(allowed_values)
+
+    def build_where_clause(self):
+        if not self.allowed_values:
+            return "WHERE 0"
+        return f"WHERE {self.column_name} IN ({', '.join('?' for _ in self.allowed_values)})"
+
+    def query_parameters(self):
+        return self.allowed_values
+
+    def accepts_value(self, column_value):
+        return column_value in self.allowed_values
 
 
 class SqlTable:
@@ -50,8 +86,10 @@ class SqlTable:
         primary_key_column_name="id",
         simulated_load=None,
         touches_reference_data=False,
+        hidden_column_names=(),
     ):
         self.connection = connection
+        self.hidden_column_names = hidden_column_names
         self.database_name = database_name
         self.table_name = table_name
         self.record_type = record_type
@@ -74,7 +112,7 @@ class SqlTable:
     @property
     def displayed_column_names(self):
         displayed_column_names = []
-        for column_name in self.column_names:
+        for column_name in self._column_names_visible_on_display():
             relationship = self._relationships_by_foreign_key_column_name.get(column_name)
             if relationship is None:
                 displayed_column_names.append(column_name)
@@ -116,6 +154,19 @@ class SqlTable:
         return self.find_record_by_id(primary_key_value)
 
     @subject_to_simulated_load
+    def delete_record_by_primary_key(self, primary_key_value):
+        deleted_row_count = self.connection.run_in_single_transaction(
+            lambda transaction: transaction.execute(
+                f"DELETE FROM {self.qualified_table_name} WHERE {self.primary_key_column_name} = ?",
+                (primary_key_value,),
+            ).rowcount
+        )
+        if deleted_row_count == 0:
+            raise RecordNotFoundError(
+                f"No record with {self.primary_key_column_name} {primary_key_value} in table '{self.qualified_table_name}'"
+            )
+
+    @subject_to_simulated_load
     def contains_record_with_id(self, record_id):
         return self.find_record_by_id(record_id) is not None
 
@@ -136,29 +187,35 @@ class SqlTable:
         )
 
     @subject_to_simulated_load
-    def count_all_records(self):
-        return self.connection.fetch_single_row(f"SELECT COUNT(*) FROM {self.qualified_table_name}")[0]
+    def count_all_records(self, row_filter=None):
+        row_filter = row_filter or NoRowFilter()
+        return self.connection.fetch_single_row(
+            f"SELECT COUNT(*) FROM {self.qualified_table_name} {row_filter.build_where_clause()}",
+            row_filter.query_parameters(),
+        )[0]
 
     @subject_to_simulated_load
-    def count_pages_for_page_size(self, page_size):
-        return max(1, math.ceil(self.count_all_records() / page_size))
+    def count_pages_for_page_size(self, page_size, row_filter=None):
+        return max(1, math.ceil(self.count_all_records(row_filter) / page_size))
 
     @subject_to_simulated_load
-    def list_records_on_page(self, page_number, page_size):
-        total_page_count = self.count_pages_for_page_size(page_size)
+    def list_records_on_page(self, page_number, page_size, row_filter=None):
+        row_filter = row_filter or NoRowFilter()
+        total_page_count = self.count_pages_for_page_size(page_size, row_filter)
         if not 1 <= page_number <= total_page_count:
             raise PageOutOfRangeError(
                 f"Page {page_number} of table '{self.qualified_table_name}' is out of range 1-{total_page_count}"
             )
         rows = self.connection.fetch_all_rows(
-            f"SELECT * FROM {self.qualified_table_name} ORDER BY {self.primary_key_column_name} LIMIT ? OFFSET ?",
-            (page_size, (page_number - 1) * page_size),
+            f"SELECT * FROM {self.qualified_table_name} {row_filter.build_where_clause()} "
+            f"ORDER BY {self.primary_key_column_name} LIMIT ? OFFSET ?",
+            (*row_filter.query_parameters(), page_size, (page_number - 1) * page_size),
         )
         return [self.map_row_to_record(row) for row in rows]
 
     def describe_record_with_related_records(self, record):
         described_record = {}
-        for column_name in self.column_names:
+        for column_name in self._column_names_visible_on_display():
             relationship = self._relationships_by_foreign_key_column_name.get(column_name)
             if relationship is None:
                 described_record[column_name] = self.convert_to_json_compatible_value(getattr(record, column_name))
@@ -167,22 +224,25 @@ class SqlTable:
         return described_record
 
     @subject_to_simulated_load
-    def describe_page(self, page_number, page_size):
+    def describe_page(self, page_number, page_size, row_filter=None):
         return {
             "database_name": self.database_name,
             "table_name": self.table_name,
             "replica_of": self.replica_of_qualified_table_name,
             "primary_key_column_name": self.primary_key_column_name,
             "column_names": list(self.displayed_column_names),
-            "total_record_count": self.count_all_records(),
+            "total_record_count": self.count_all_records(row_filter),
             "page_number": page_number,
             "page_size": page_size,
-            "total_page_count": self.count_pages_for_page_size(page_size),
+            "total_page_count": self.count_pages_for_page_size(page_size, row_filter),
             "records": [
                 self.describe_record_with_related_records(record)
-                for record in self.list_records_on_page(page_number, page_size)
+                for record in self.list_records_on_page(page_number, page_size, row_filter)
             ],
         }
+
+    def _column_names_visible_on_display(self):
+        return tuple(column_name for column_name in self.column_names if column_name not in self.hidden_column_names)
 
     def map_row_to_record(self, row):
         return self.record_type(

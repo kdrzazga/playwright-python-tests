@@ -51,6 +51,40 @@ class CustomerType(StrEnum):
     INSTITUTIONAL = "institutional"
 
 
+class UserRole(StrEnum):
+    ADMIN = "admin"
+    SUPERUSER = "superuser"
+    DEALER = "dealer"
+    VIEWER = "viewer"
+
+
+class PermissionName(StrEnum):
+    VIEW_DB_TABLES = "view_db_tables"
+    FRONTEND_ACCESS = "frontend.access"
+    VEHICLE_VIEW = "vehicle.view"
+    VEHICLE_ADD = "vehicle.add"
+    VEHICLE_MODIFY = "vehicle.modify"
+    VEHICLE_REMOVE = "vehicle.remove"
+    RENTAL_VIEW = "rental.view"
+    RENTAL_ADD = "rental.add"
+    RENTAL_MODIFY = "rental.modify"
+    RENTAL_REMOVE = "rental.remove"
+    SELL_VIEW = "sell.view"
+    SELL_ADD = "sell.add"
+    SELL_MODIFY = "sell.modify"
+    SELL_REMOVE = "sell.remove"
+    LOAN_VIEW = "loan.view"
+    LOAN_ADD = "loan.add"
+    LOAN_MODIFY = "loan.modify"
+    LOAN_REMOVE = "loan.remove"
+    BRAND_VW_ACCESS = "brand.vw.access"
+    BRAND_TOYOTA_ACCESS = "brand.toyota.access"
+    BRAND_MERCEDES_ACCESS = "brand.mercedes.access"
+    BRAND_TESLA_ACCESS = "brand.tesla.access"
+    BRAND_SKODA_ACCESS = "brand.skoda.access"
+    BRAND_BMW_ACCESS = "brand.bmw.access"
+
+
 class LoanStatus(StrEnum):
     ACTIVE = "active"
     REPAID = "repaid"
@@ -246,3 +280,42 @@ class Loan:
 
     def total_interest_eur(self):
         return round(self.total_of_all_installments_eur() - self.principal_eur, 2)
+
+
+@dataclass(frozen=True)
+class UserAccount:
+    id: int
+    username: str
+    password_hash: str
+    role: UserRole
+    name: str
+    last_name: str
+    company_id: int | None
+
+
+@dataclass(frozen=True)
+class PermissionDefinition:
+    id: int
+    permission: str
+    brand_id: int | None
+
+
+@dataclass(frozen=True)
+class Brand:
+    id: int
+    code: str
+    name: str
+
+
+@dataclass(frozen=True)
+class RolePermissionRule:
+    id: int
+    role: UserRole
+    permission_pattern: str
+
+
+@dataclass(frozen=True)
+class UserPermission:
+    id: int
+    user_id: int
+    permission_id: int

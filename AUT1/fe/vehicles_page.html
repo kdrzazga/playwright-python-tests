@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Car Sales & Rental - Vehicles</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <script type="module" src="/js/vehicles_page.js"></script>
+</head>
+<body>
+<header class="top-bar">
+    <span class="app-name">Car Sales & Rental</span>
+    <div class="top-bar-actions">
+        <button type="button" class="secondary-button" data-testid="back-to-home-button">Back</button>
+        <button type="button" class="secondary-button" data-testid="logout-button">Log out</button>
+    </div>
+</header>
+<main class="page-content">
+    <h1 data-testid="vehicles-page-title">Vehicles</h1>
+    <p class="muted-text" data-testid="accessible-brands-notice"></p>
+    <p class="status-message" role="status" data-testid="vehicle-status-message" hidden></p>
+    <p class="error-message" role="alert" data-testid="vehicle-error-message" hidden></p>
+    <section class="database-table-section" data-testid="vehicles-section"></section>
+    <section class="card add-vehicle-card" data-testid="add-vehicle-section" hidden>
+        <h2>Add vehicle</h2>
+        <form class="vehicle-form" data-testid="add-vehicle-form" novalidate>
+            <div class="vehicle-form-fields" data-testid="add-vehicle-fields"></div>
+            <button type="submit" class="primary-button" data-testid="add-vehicle-button">Add vehicle</button>
+        </form>
+    </section>
+</main>
+<footer class="session-footer" data-testid="session-footer" hidden>
+    Logged in as <strong data-testid="footer-username"></strong> on <span data-testid="footer-login-time"></span>
+</footer>
+</body>
+</html>

@@ -150,3 +150,11 @@ INSERT INTO reference.factories (name, manufacturer, city, country, opened_year,
     ('GM Spring Hill Manufacturing', 'General Motors', 'Spring Hill', 'United States', 1990, NULL, TRUE),
     ('Mercedes-Benz Tuscaloosa Plant', 'Mercedes-Benz', 'Vance', 'United States', 1997, NULL, TRUE),
     ('Stellantis Warren Truck Assembly', 'Stellantis', 'Warren', 'United States', 1938, NULL, TRUE);
+
+INSERT INTO reference.brands (code, name) VALUES
+    ('vw', 'Volkswagen'),
+    ('toyota', 'Toyota'),
+    ('mercedes', 'Mercedes-Benz'),
+    ('tesla', 'Tesla'),
+    ('skoda', 'Skoda'),
+    ('bmw', 'BMW');

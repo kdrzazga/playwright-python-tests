@@ -50,3 +50,9 @@ CREATE TABLE reference.factories (
     active       BOOLEAN NOT NULL CHECK (active IN (0, 1)),
     CHECK ((active = 1) = (closed_year IS NULL))
 );
+
+CREATE TABLE reference.brands (
+    id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT NOT NULL UNIQUE CHECK (code <> '' AND code NOT GLOB '*[^a-z0-9]*'),
+    name TEXT NOT NULL UNIQUE
+);
