@@ -31,10 +31,13 @@
                         <button type="submit" class="primary-button" data-testid="add-vehicle-button">Add vehicle</button>
                     </form>
                 </td>
-                <td class="horsepower-chart-cell" data-testid="horsepower-chart-cell">
-                    <h2>Power comparison</h2>
-                    <p class="muted-text">Drag rows from the Vehicles table onto the chart.</p>
-                    <div class="horsepower-bar-chart" data-testid="horsepower-bar-chart"></div>
+                <td class="vehicle-charts-cell" data-testid="vehicle-charts-cell">
+                    <h2>Vehicle comparison</h2>
+                    <p class="muted-text">Drag rows from the Vehicles table onto a chart, and drag bars between the charts.</p>
+                    <h3 class="vehicle-bar-chart-title" data-testid="horsepower-chart-title">Power (HP)</h3>
+                    <div class="vehicle-bar-chart" data-testid="horsepower-bar-chart"></div>
+                    <h3 class="vehicle-bar-chart-title" data-testid="price-chart-title">Price (EUR)</h3>
+                    <div class="vehicle-bar-chart" data-testid="price-bar-chart"></div>
                 </td>
             </tr>
         </table>

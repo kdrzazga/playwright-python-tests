@@ -323,28 +323,33 @@ th {
     padding-left: 0;
 }
 
-.horsepower-chart-cell {
+.vehicle-charts-cell {
     border-left: 1px solid var(--border-color);
 }
 
-.horsepower-chart-cell .muted-text {
+.vehicle-charts-cell .muted-text {
     margin-top: 0;
     font-size: 0.9rem;
 }
 
-.horsepower-bar-chart {
+.vehicle-bar-chart-title {
+    margin: 16px 0 6px;
+    font-size: 1rem;
+}
+
+.vehicle-bar-chart {
     border: 2px dashed var(--border-color);
     border-radius: 8px;
     padding: 8px;
     transition: border-color 0.15s, background 0.15s;
 }
 
-.horsepower-bar-chart.drop-target-active {
+.vehicle-bar-chart.drop-target-active {
     border-color: var(--accent-color);
     background: #eef4ff;
 }
 
-.horsepower-bar-chart-svg {
+.vehicle-bar-chart-svg {
     display: block;
     width: 100%;
     height: auto;
@@ -373,6 +378,14 @@ th {
 
 .chart-bar-rect {
     fill: var(--accent-color);
+}
+
+.chart-bar {
+    cursor: grab;
+}
+
+.vehicle-bar-being-dragged {
+    opacity: 0.4;
 }
 
 .chart-bar:hover .chart-bar-rect {

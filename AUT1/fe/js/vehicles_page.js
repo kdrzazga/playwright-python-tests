@@ -1,5 +1,5 @@
 import { ApiClient, ApiRequestError, PageNavigator } from "./api_client.js";
-import { DraggedVehicleTransfer, HorsepowerBarChart } from "./horsepower_bar_chart.js";
+import { CompactCurrencyFormatter, DraggedVehicleTransfer, PlainNumberFormatter, VehicleBarChart } from "./vehicle_bar_chart.js";
 import { LogoutButton } from "./logout_button.js";
 import { PaginationControls } from "./pagination_controls.js";
 import { SessionFooter } from "./session_footer.js";
@@ -104,10 +104,13 @@ class VehicleTableView {
         vehicleRow.draggable = true;
         vehicleRow.classList.add("draggable-vehicle-row");
         vehicleRow.addEventListener("dragstart", (dragEvent) => {
-            this.draggedVehicleTransfer.writeVehicle(dragEvent.dataTransfer, vehicle);
+            this.draggedVehicleTransfer.beginDragFromTable(dragEvent.dataTransfer, vehicle);
             vehicleRow.classList.add("vehicle-row-being-dragged");
         });
-        vehicleRow.addEventListener("dragend", () => vehicleRow.classList.remove("vehicle-row-being-dragged"));
+        vehicleRow.addEventListener("dragend", () => {
+            vehicleRow.classList.remove("vehicle-row-being-dragged");
+            this.draggedVehicleTransfer.endDrag();
+        });
     }
 
     #buildRemoveButton(vehicle) {
@@ -269,10 +272,28 @@ class VehiclesPage {
             (vehicleId) => this.#removeVehicle(vehicleId),
             draggedVehicleTransfer,
         );
-        this.horsepowerBarChart = new HorsepowerBarChart(
-            document.querySelector("[data-testid='horsepower-bar-chart']"),
-            draggedVehicleTransfer,
-        );
+        this.vehicleBarCharts = [
+            new VehicleBarChart(
+                document.querySelector("[data-testid='horsepower-bar-chart']"),
+                draggedVehicleTransfer,
+                "power_hp",
+                "HP",
+                "HP",
+                "horsepower",
+                500,
+                new PlainNumberFormatter(),
+            ),
+            new VehicleBarChart(
+                document.querySelector("[data-testid='price-bar-chart']"),
+                draggedVehicleTransfer,
+                "price_eur",
+                "EUR",
+                "EUR",
+                "price",
+                100000,
+                new CompactCurrencyFormatter("en"),
+            ),
+        ];
         this.addVehicleForm = new AddVehicleForm(
             (vehicleFields) => this.#addVehicle(vehicleFields),
             new RandomVinGenerator(),
@@ -291,7 +312,7 @@ class VehiclesPage {
             }
             if (loggedInUser.permissions.includes("vehicle.add")) {
                 this.addVehicleForm.renderWithChoices(await this.apiClient.fetchVehicleFormOptions());
-                this.horsepowerBarChart.startAcceptingDroppedVehicles();
+                this.vehicleBarCharts.forEach((vehicleBarChart) => vehicleBarChart.startAcceptingDroppedVehicles());
                 this.vehicleTableView.allowDraggingVehicleRows();
             }
             await this.#showPageOfVehicles(1);
