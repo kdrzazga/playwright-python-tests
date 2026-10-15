@@ -304,3 +304,100 @@ th {
 .vehicle-form .primary-button {
     width: auto;
 }
+
+.add-vehicle-layout-table {
+    border: none;
+    background: transparent;
+    table-layout: fixed;
+}
+
+.add-vehicle-layout-table td {
+    vertical-align: top;
+    white-space: normal;
+    border-bottom: none;
+    padding: 0 16px;
+}
+
+.add-vehicle-form-cell {
+    width: 55%;
+    padding-left: 0;
+}
+
+.horsepower-chart-cell {
+    border-left: 1px solid var(--border-color);
+}
+
+.horsepower-chart-cell .muted-text {
+    margin-top: 0;
+    font-size: 0.9rem;
+}
+
+.horsepower-bar-chart {
+    border: 2px dashed var(--border-color);
+    border-radius: 8px;
+    padding: 8px;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.horsepower-bar-chart.drop-target-active {
+    border-color: var(--accent-color);
+    background: #eef4ff;
+}
+
+.horsepower-bar-chart-svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.chart-grid-line {
+    stroke: var(--border-color);
+    stroke-width: 1;
+}
+
+.chart-axis-line {
+    stroke: var(--muted-text-color);
+    stroke-width: 1.5;
+}
+
+.chart-tick-label {
+    fill: var(--muted-text-color);
+    font-size: 12px;
+}
+
+.chart-axis-title {
+    fill: var(--text-color);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.chart-bar-rect {
+    fill: var(--accent-color);
+}
+
+.chart-bar:hover .chart-bar-rect {
+    fill: var(--accent-hover-color);
+}
+
+.chart-bar-value-label {
+    fill: var(--text-color);
+    font-size: 11px;
+}
+
+.chart-empty-hint {
+    fill: var(--muted-text-color);
+    font-size: 14px;
+    font-style: italic;
+}
+
+.draggable-vehicle-row {
+    cursor: grab;
+}
+
+.draggable-vehicle-row:hover {
+    background: #f7f9fc;
+}
+
+.vehicle-row-being-dragged {
+    opacity: 0.5;
+}

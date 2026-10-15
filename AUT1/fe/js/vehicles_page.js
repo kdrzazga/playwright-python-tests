@@ -1,4 +1,5 @@
 import { ApiClient, ApiRequestError, PageNavigator } from "./api_client.js";
+import { DraggedVehicleTransfer, HorsepowerBarChart } from "./horsepower_bar_chart.js";
 import { LogoutButton } from "./logout_button.js";
 import { PaginationControls } from "./pagination_controls.js";
 import { SessionFooter } from "./session_footer.js";
@@ -23,15 +24,21 @@ class MessageBanner {
 }
 
 class VehicleTableView {
-    constructor(sectionElement, onPageRequested, onRemoveRequested) {
+    constructor(sectionElement, onPageRequested, onRemoveRequested, draggedVehicleTransfer) {
         this.sectionElement = sectionElement;
         this.onRemoveRequested = onRemoveRequested;
+        this.draggedVehicleTransfer = draggedVehicleTransfer;
         this.paginationControls = new PaginationControls("vehicles", onPageRequested);
         this.userMayRemoveVehicles = false;
+        this.vehicleRowsAreDraggable = false;
     }
 
     allowRemovingVehicles() {
         this.userMayRemoveVehicles = true;
+    }
+
+    allowDraggingVehicleRows() {
+        this.vehicleRowsAreDraggable = true;
     }
 
     render(vehiclePage) {
@@ -86,8 +93,21 @@ class VehicleTableView {
             if (this.userMayRemoveVehicles) {
                 vehicleRow.insertCell().append(this.#buildRemoveButton(vehicle));
             }
+            if (this.vehicleRowsAreDraggable) {
+                this.#makeRowDraggable(vehicleRow, vehicle);
+            }
         }
         return tableBody;
+    }
+
+    #makeRowDraggable(vehicleRow, vehicle) {
+        vehicleRow.draggable = true;
+        vehicleRow.classList.add("draggable-vehicle-row");
+        vehicleRow.addEventListener("dragstart", (dragEvent) => {
+            this.draggedVehicleTransfer.writeVehicle(dragEvent.dataTransfer, vehicle);
+            vehicleRow.classList.add("vehicle-row-being-dragged");
+        });
+        vehicleRow.addEventListener("dragend", () => vehicleRow.classList.remove("vehicle-row-being-dragged"));
     }
 
     #buildRemoveButton(vehicle) {
@@ -242,10 +262,16 @@ class VehiclesPage {
         this.messageBanner = new MessageBanner();
         this.accessibleBrandsNotice = document.querySelector("[data-testid='accessible-brands-notice']");
         this.backToHomeButton = document.querySelector("[data-testid='back-to-home-button']");
+        const draggedVehicleTransfer = new DraggedVehicleTransfer();
         this.vehicleTableView = new VehicleTableView(
             document.querySelector("[data-testid='vehicles-section']"),
             (pageNumber) => this.#showPageOfVehicles(pageNumber),
             (vehicleId) => this.#removeVehicle(vehicleId),
+            draggedVehicleTransfer,
+        );
+        this.horsepowerBarChart = new HorsepowerBarChart(
+            document.querySelector("[data-testid='horsepower-bar-chart']"),
+            draggedVehicleTransfer,
         );
         this.addVehicleForm = new AddVehicleForm(
             (vehicleFields) => this.#addVehicle(vehicleFields),
@@ -265,6 +291,8 @@ class VehiclesPage {
             }
             if (loggedInUser.permissions.includes("vehicle.add")) {
                 this.addVehicleForm.renderWithChoices(await this.apiClient.fetchVehicleFormOptions());
+                this.horsepowerBarChart.startAcceptingDroppedVehicles();
+                this.vehicleTableView.allowDraggingVehicleRows();
             }
             await this.#showPageOfVehicles(1);
         } catch {
