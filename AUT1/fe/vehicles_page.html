@@ -22,11 +22,25 @@
     <p class="error-message" role="alert" data-testid="vehicle-error-message" hidden></p>
     <section class="database-table-section" data-testid="vehicles-section"></section>
     <section class="card add-vehicle-card" data-testid="add-vehicle-section" hidden>
-        <h2>Add vehicle</h2>
-        <form class="vehicle-form" data-testid="add-vehicle-form" novalidate>
-            <div class="vehicle-form-fields" data-testid="add-vehicle-fields"></div>
-            <button type="submit" class="primary-button" data-testid="add-vehicle-button">Add vehicle</button>
-        </form>
+        <table class="add-vehicle-layout-table" data-testid="add-vehicle-layout-table">
+            <tr data-testid="add-vehicle-layout-row">
+                <td class="add-vehicle-form-cell" data-testid="add-vehicle-form-cell">
+                    <h2>Add vehicle</h2>
+                    <form class="vehicle-form" data-testid="add-vehicle-form" novalidate>
+                        <div class="vehicle-form-fields" data-testid="add-vehicle-fields"></div>
+                        <button type="submit" class="primary-button" data-testid="add-vehicle-button">Add vehicle</button>
+                    </form>
+                </td>
+                <td class="vehicle-charts-cell" data-testid="vehicle-charts-cell">
+                    <h2>Vehicle comparison</h2>
+                    <p class="muted-text">Drag rows from the Vehicles table onto a chart, and drag bars between the charts.</p>
+                    <h3 class="vehicle-bar-chart-title" data-testid="horsepower-chart-title">Power (HP)</h3>
+                    <div class="vehicle-bar-chart" data-testid="horsepower-bar-chart"></div>
+                    <h3 class="vehicle-bar-chart-title" data-testid="price-chart-title">Price (EUR)</h3>
+                    <div class="vehicle-bar-chart" data-testid="price-bar-chart"></div>
+                </td>
+            </tr>
+        </table>
     </section>
 </main>
 <footer class="session-footer" data-testid="session-footer" hidden>
