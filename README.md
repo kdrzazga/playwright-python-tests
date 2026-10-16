@@ -29,7 +29,7 @@ Tests are split by application under test:
 | Folder | Application | Notes |
 |---|---|---|
 | `tests/the-internet/` | the-internet.herokuapp.com | Page objects in `pom/the_internet.py`. CI runs this folder's smoke tests. |
-| `tests/AUT1/` | local AUT1 car sales and rental app | Page objects in `pom/aut1.py`. Start the AUT1 server first; the tests fail with a hint when it is not reachable. Override its address with `AUT1_BASE_URL` (default `http://127.0.0.1:8000`). |
+| `tests/AUT1/` | local AUT1 car sales and rental app | Page objects in `pom/aut1.py`. AUT1 is treated as a black box: tests only log in, click and drag with the mouse, and assert what is visible on screen. Start the AUT1 server first. Override its address with `AUT1_BASE_URL` (default `http://127.0.0.1:8000`). |
 
 The folder name `the-internet` is not a valid Python package name, so pytest runs with `--import-mode=importlib` (set in `pyproject.toml`); shared helpers live directly in `tests/`.
 

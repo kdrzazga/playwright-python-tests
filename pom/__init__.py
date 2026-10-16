@@ -1,4 +1,4 @@
-from pom.aut1 import Aut1Application, Aut1VehiclesPage
+from pom.aut1 import Aut1UserInterface, Aut1VehiclesPage, DisplayedBar, VehicleBarChart
 from pom.the_internet import TheInternet
 
-__all__ = ("Aut1Application", "Aut1VehiclesPage", "TheInternet")
+__all__ = ("Aut1UserInterface", "Aut1VehiclesPage", "DisplayedBar", "TheInternet", "VehicleBarChart")

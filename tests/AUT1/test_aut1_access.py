@@ -3,7 +3,7 @@ import re
 import pytest
 from playwright.sync_api import expect
 
-from pom import Aut1Application, Aut1VehiclesPage
+from pom import Aut1UserInterface, Aut1VehiclesPage
 from tests.aut1_seeded_users import Aut1SeededUsers
 
 
@@ -13,14 +13,14 @@ pytestmark = pytest.mark.aut1
 class TestAut1Access:
     @pytest.mark.auth
     @pytest.mark.negative
-    def test_user_without_frontend_access_is_refused_at_login(self, aut1: Aut1Application, aut1_users: Aut1SeededUsers) -> None:
+    def test_user_without_frontend_access_is_refused_at_login(self, aut1_ui: Aut1UserInterface, aut1_users: Aut1SeededUsers) -> None:
         refused_user = aut1_users.user_without_frontend_access
 
-        aut1.login_page.open().log_in(refused_user.username, refused_user.password)
+        aut1_ui.login_page.open().log_in(refused_user.username, refused_user.password)
 
-        expect(aut1.login_page.error_message).to_be_visible()
-        expect(aut1.login_page.error_message).to_have_text(re.compile(r"\S"))
-        expect(aut1.page).to_have_url(re.compile(r"/login_page\.html$"))
+        expect(aut1_ui.login_page.error_message).to_be_visible()
+        expect(aut1_ui.login_page.error_message).to_have_text(re.compile(r"\S"))
+        expect(aut1_ui.page).to_have_url(re.compile(r"/login_page\.html$"))
 
     @pytest.mark.vehicles
     @pytest.mark.smoke
