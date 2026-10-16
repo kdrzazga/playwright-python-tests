@@ -1,37 +1,3 @@
-export class DraggedVehicleTransfer {
-    constructor() {
-        this.transferMediaType = "application/x-vehicle";
-        this.draggedVehicle = null;
-        this.sourceChart = null;
-    }
-
-    get requiredDropEffect() {
-        return this.sourceChart === null ? "copy" : "move";
-    }
-
-    beginDragFromTable(dataTransfer, vehicle) {
-        this.#beginDrag(dataTransfer, vehicle, null);
-    }
-
-    beginDragFromChart(dataTransfer, vehicle, sourceChart) {
-        this.#beginDrag(dataTransfer, vehicle, sourceChart);
-    }
-
-    endDrag() {
-        this.draggedVehicle = null;
-        this.sourceChart = null;
-    }
-
-    #beginDrag(dataTransfer, vehicle, sourceChart) {
-        this.draggedVehicle = vehicle;
-        this.sourceChart = sourceChart;
-        const serializedVehicle = JSON.stringify(vehicle);
-        dataTransfer.setData(this.transferMediaType, serializedVehicle);
-        dataTransfer.setData("text/plain", serializedVehicle);
-        dataTransfer.effectAllowed = this.requiredDropEffect;
-    }
-}
-
 class SvgElementFactory {
     constructor() {
         this.svgNamespace = "http://www.w3.org/2000/svg";
@@ -104,9 +70,8 @@ export class CompactCurrencyFormatter {
 }
 
 export class VehicleBarChart {
-    constructor(chartContainer, draggedVehicleTransfer, chartedFieldName, yAxisTitle, valueUnitLabel, testIdPrefix, emptyChartMaximumValue, valueFormatter) {
+    constructor(chartContainer, chartedFieldName, yAxisTitle, valueUnitLabel, testIdPrefix, emptyChartMaximumValue, valueFormatter) {
         this.chartContainer = chartContainer;
-        this.draggedVehicleTransfer = draggedVehicleTransfer;
         this.chartedFieldName = chartedFieldName;
         this.yAxisTitle = yAxisTitle;
         this.valueUnitLabel = valueUnitLabel;
@@ -121,7 +86,9 @@ export class VehicleBarChart {
         this.minimumBarSlotCount = 8;
         this.barWidthShareOfSlot = 0.7;
         this.droppedVehicles = [];
-        this.pressedBarVehicleId = null;
+        this.chartSvg = null;
+        this.insertionMarkerLine = null;
+        this.draggedBarClassName = "vehicle-bar-being-dragged";
     }
 
     get plotWidth() {
@@ -132,30 +99,8 @@ export class VehicleBarChart {
         return this.chartHeight - this.plotMargins.top - this.plotMargins.bottom;
     }
 
-    startAcceptingDroppedVehicles() {
-        this.chartContainer.addEventListener("dragover", (dragEvent) => this.#allowDropOfVehicle(dragEvent));
-        this.chartContainer.addEventListener("dragleave", () => this.chartContainer.classList.remove("drop-target-active"));
-        this.chartContainer.addEventListener("drop", (dropEvent) => this.#addDroppedVehicle(dropEvent));
-        this.chartContainer.draggable = true;
-        this.chartContainer.addEventListener("pointerdown", (pointerEvent) => this.#rememberPressedBar(pointerEvent));
-        this.chartContainer.addEventListener("dragstart", (dragEvent) => this.#startDraggingPressedBar(dragEvent));
-        this.chartContainer.addEventListener("dragend", () => this.#finishDraggingBar());
-        this.render();
-    }
-
-    addVehicleBar(vehicle) {
-        const chartedValue = Number(vehicle[this.chartedFieldName]);
-        if (vehicle[this.chartedFieldName] === null || !Number.isFinite(chartedValue) || this.#isVehicleAlreadyCharted(vehicle)) {
-            return false;
-        }
-        this.droppedVehicles.push({ ...vehicle, chartedValue });
-        this.render();
-        return true;
-    }
-
-    removeVehicleBar(vehicleId) {
-        this.droppedVehicles = this.droppedVehicles.filter((droppedVehicle) => droppedVehicle.id !== vehicleId);
-        this.render();
+    get barSlotWidth() {
+        return this.plotWidth / Math.max(this.minimumBarSlotCount, this.droppedVehicles.length);
     }
 
     render() {
@@ -172,67 +117,85 @@ export class VehicleBarChart {
             this.#buildBars(axisMaximum),
             this.#buildAxisLines(),
             this.#buildAxisTitles(),
+            this.#buildInsertionMarkerLine(),
         );
         if (this.droppedVehicles.length === 0) {
             chartSvg.append(this.#buildEmptyChartHint());
         }
         this.chartContainer.dataset.barCount = String(this.droppedVehicles.length);
         this.chartContainer.replaceChildren(chartSvg);
+        this.chartSvg = chartSvg;
     }
 
-    #isVehicleAlreadyCharted(vehicle) {
-        return this.droppedVehicles.some((droppedVehicle) => droppedVehicle.id === vehicle.id);
+    canChartVehicle(vehicle) {
+        const chartedValue = vehicle[this.chartedFieldName];
+        return chartedValue !== null && Number.isFinite(Number(chartedValue)) && this.findChartedVehicleById(String(vehicle.id)) === null;
     }
 
-    #canAcceptDraggedVehicle() {
-        const draggedVehicle = this.draggedVehicleTransfer.draggedVehicle;
-        return draggedVehicle !== null && this.draggedVehicleTransfer.sourceChart !== this && !this.#isVehicleAlreadyCharted(draggedVehicle);
+    insertVehicleBar(vehicle, insertionIndex) {
+        if (!this.canChartVehicle(vehicle)) {
+            return false;
+        }
+        const boundedInsertionIndex = Math.min(this.droppedVehicles.length, Math.max(0, insertionIndex));
+        this.droppedVehicles.splice(boundedInsertionIndex, 0, { ...vehicle, chartedValue: Number(vehicle[this.chartedFieldName]) });
+        this.render();
+        return true;
     }
 
-    #allowDropOfVehicle(dragEvent) {
-        if (!this.#canAcceptDraggedVehicle()) {
+    moveVehicleBar(vehicleId, insertionIndex) {
+        const currentIndex = this.droppedVehicles.findIndex((droppedVehicle) => droppedVehicle.id === vehicleId);
+        if (currentIndex === -1) {
             return;
         }
-        dragEvent.preventDefault();
-        dragEvent.dataTransfer.dropEffect = this.draggedVehicleTransfer.requiredDropEffect;
-        this.chartContainer.classList.add("drop-target-active");
+        const [movedVehicle] = this.droppedVehicles.splice(currentIndex, 1);
+        const insertionIndexAfterRemoval = insertionIndex > currentIndex ? insertionIndex - 1 : insertionIndex;
+        const boundedInsertionIndex = Math.min(this.droppedVehicles.length, Math.max(0, insertionIndexAfterRemoval));
+        this.droppedVehicles.splice(boundedInsertionIndex, 0, movedVehicle);
+        this.render();
     }
 
-    #addDroppedVehicle(dropEvent) {
-        dropEvent.preventDefault();
-        this.chartContainer.classList.remove("drop-target-active");
-        if (!this.#canAcceptDraggedVehicle()) {
-            return;
-        }
-        const draggedVehicle = this.draggedVehicleTransfer.draggedVehicle;
-        const sourceChart = this.draggedVehicleTransfer.sourceChart;
-        if (this.addVehicleBar(draggedVehicle) && sourceChart !== null) {
-            sourceChart.removeVehicleBar(draggedVehicle.id);
-        }
-        this.draggedVehicleTransfer.endDrag();
+    removeVehicleBar(vehicleId) {
+        this.droppedVehicles = this.droppedVehicles.filter((droppedVehicle) => droppedVehicle.id !== vehicleId);
+        this.render();
     }
 
-    #rememberPressedBar(pointerEvent) {
-        const pressedBarElement = pointerEvent.target.closest("[data-vehicle-id]");
-        this.pressedBarVehicleId = pressedBarElement === null ? null : pressedBarElement.getAttribute("data-vehicle-id");
+    findChartedVehicleById(vehicleIdText) {
+        return this.droppedVehicles.find((droppedVehicle) => String(droppedVehicle.id) === vehicleIdText) ?? null;
     }
 
-    #startDraggingPressedBar(dragEvent) {
-        const pressedBarVehicle = this.droppedVehicles.find((droppedVehicle) => String(droppedVehicle.id) === this.pressedBarVehicleId);
-        if (pressedBarVehicle === undefined) {
-            dragEvent.preventDefault();
-            return;
-        }
-        this.draggedVehicleTransfer.beginDragFromChart(dragEvent.dataTransfer, pressedBarVehicle, this);
-        this.chartContainer.querySelector(`[data-vehicle-id="${this.pressedBarVehicleId}"]`).classList.add("vehicle-bar-being-dragged");
+    findVehicleIdOfBarElement(element) {
+        const barElement = element.closest("[data-vehicle-id]");
+        return barElement === null ? null : barElement.getAttribute("data-vehicle-id");
     }
 
-    #finishDraggingBar() {
-        this.pressedBarVehicleId = null;
-        this.chartContainer.querySelectorAll(".vehicle-bar-being-dragged").forEach((barElement) => barElement.classList.remove("vehicle-bar-being-dragged"));
-        if (this.draggedVehicleTransfer.sourceChart === this) {
-            this.draggedVehicleTransfer.endDrag();
+    findInsertionIndexAtClientPoint(clientX, clientY) {
+        const screenTransform = this.chartSvg === null ? null : this.chartSvg.getScreenCTM();
+        if (screenTransform === null) {
+            return this.droppedVehicles.length;
         }
+        const pointInChartCoordinates = new DOMPoint(clientX, clientY).matrixTransform(screenTransform.inverse());
+        const barSlotsLeftOfPointer = (pointInChartCoordinates.x - this.plotMargins.left) / this.barSlotWidth;
+        return Math.min(this.droppedVehicles.length, Math.max(0, Math.round(barSlotsLeftOfPointer)));
+    }
+
+    showInsertionMarker(insertionIndex) {
+        const markerX = this.plotMargins.left + this.barSlotWidth * insertionIndex;
+        this.insertionMarkerLine.setAttribute("x1", String(markerX));
+        this.insertionMarkerLine.setAttribute("x2", String(markerX));
+        this.insertionMarkerLine.setAttribute("data-insertion-index", String(insertionIndex));
+        this.insertionMarkerLine.classList.add("chart-insertion-marker-visible");
+    }
+
+    hideInsertionMarker() {
+        this.insertionMarkerLine.classList.remove("chart-insertion-marker-visible");
+    }
+
+    markBarAsDragged(vehicleId) {
+        this.chartContainer.querySelector(`[data-vehicle-id="${vehicleId}"]`).classList.add(this.draggedBarClassName);
+    }
+
+    unmarkDraggedBars() {
+        this.chartContainer.querySelectorAll(`.${this.draggedBarClassName}`).forEach((barElement) => barElement.classList.remove(this.draggedBarClassName));
     }
 
     #convertValueToY(value, axisMaximum) {
@@ -263,7 +226,7 @@ export class VehicleBarChart {
 
     #buildBars(axisMaximum) {
         const barsGroup = this.svgElementFactory.create("g", { "data-testid": `${this.testIdPrefix}-chart-bars` });
-        const barSlotWidth = this.plotWidth / Math.max(this.minimumBarSlotCount, this.droppedVehicles.length);
+        const barSlotWidth = this.barSlotWidth;
         const barWidth = barSlotWidth * this.barWidthShareOfSlot;
         const plotBottomY = this.plotMargins.top + this.plotHeight;
         this.droppedVehicles.forEach((vehicle, barIndex) => {
@@ -357,6 +320,18 @@ export class VehicleBarChart {
             ),
         );
         return titlesGroup;
+    }
+
+    #buildInsertionMarkerLine() {
+        this.insertionMarkerLine = this.svgElementFactory.create("line", {
+            x1: this.plotMargins.left,
+            x2: this.plotMargins.left,
+            y1: this.plotMargins.top,
+            y2: this.plotMargins.top + this.plotHeight,
+            class: "chart-insertion-marker",
+            "data-testid": `${this.testIdPrefix}-chart-insertion-marker`,
+        });
+        return this.insertionMarkerLine;
     }
 
     #buildEmptyChartHint() {

@@ -1,5 +1,6 @@
 import { ApiClient, ApiRequestError, PageNavigator } from "./api_client.js";
-import { CompactCurrencyFormatter, DraggedVehicleTransfer, PlainNumberFormatter, VehicleBarChart } from "./vehicle_bar_chart.js";
+import { CompactCurrencyFormatter, PlainNumberFormatter, VehicleBarChart } from "./vehicle_bar_chart.js";
+import { ChartBarDragSource, ChartDropTarget, VehicleDragSession, VehicleRowDragSource } from "./vehicle_drag_and_drop.js";
 import { LogoutButton } from "./logout_button.js";
 import { PaginationControls } from "./pagination_controls.js";
 import { SessionFooter } from "./session_footer.js";
@@ -24,10 +25,10 @@ class MessageBanner {
 }
 
 class VehicleTableView {
-    constructor(sectionElement, onPageRequested, onRemoveRequested, draggedVehicleTransfer) {
+    constructor(sectionElement, onPageRequested, onRemoveRequested, vehicleRowDragSource) {
         this.sectionElement = sectionElement;
         this.onRemoveRequested = onRemoveRequested;
-        this.draggedVehicleTransfer = draggedVehicleTransfer;
+        this.vehicleRowDragSource = vehicleRowDragSource;
         this.paginationControls = new PaginationControls("vehicles", onPageRequested);
         this.userMayRemoveVehicles = false;
         this.vehicleRowsAreDraggable = false;
@@ -94,23 +95,10 @@ class VehicleTableView {
                 vehicleRow.insertCell().append(this.#buildRemoveButton(vehicle));
             }
             if (this.vehicleRowsAreDraggable) {
-                this.#makeRowDraggable(vehicleRow, vehicle);
+                this.vehicleRowDragSource.makeRowDraggable(vehicleRow, vehicle);
             }
         }
         return tableBody;
-    }
-
-    #makeRowDraggable(vehicleRow, vehicle) {
-        vehicleRow.draggable = true;
-        vehicleRow.classList.add("draggable-vehicle-row");
-        vehicleRow.addEventListener("dragstart", (dragEvent) => {
-            this.draggedVehicleTransfer.beginDragFromTable(dragEvent.dataTransfer, vehicle);
-            vehicleRow.classList.add("vehicle-row-being-dragged");
-        });
-        vehicleRow.addEventListener("dragend", () => {
-            vehicleRow.classList.remove("vehicle-row-being-dragged");
-            this.draggedVehicleTransfer.endDrag();
-        });
     }
 
     #buildRemoveButton(vehicle) {
@@ -265,17 +253,16 @@ class VehiclesPage {
         this.messageBanner = new MessageBanner();
         this.accessibleBrandsNotice = document.querySelector("[data-testid='accessible-brands-notice']");
         this.backToHomeButton = document.querySelector("[data-testid='back-to-home-button']");
-        const draggedVehicleTransfer = new DraggedVehicleTransfer();
+        this.vehicleDragSession = new VehicleDragSession();
         this.vehicleTableView = new VehicleTableView(
             document.querySelector("[data-testid='vehicles-section']"),
             (pageNumber) => this.#showPageOfVehicles(pageNumber),
             (vehicleId) => this.#removeVehicle(vehicleId),
-            draggedVehicleTransfer,
+            new VehicleRowDragSource(this.vehicleDragSession),
         );
         this.vehicleBarCharts = [
             new VehicleBarChart(
                 document.querySelector("[data-testid='horsepower-bar-chart']"),
-                draggedVehicleTransfer,
                 "power_hp",
                 "HP",
                 "HP",
@@ -285,7 +272,6 @@ class VehiclesPage {
             ),
             new VehicleBarChart(
                 document.querySelector("[data-testid='price-bar-chart']"),
-                draggedVehicleTransfer,
                 "price_eur",
                 "EUR",
                 "EUR",
@@ -312,13 +298,21 @@ class VehiclesPage {
             }
             if (loggedInUser.permissions.includes("vehicle.add")) {
                 this.addVehicleForm.renderWithChoices(await this.apiClient.fetchVehicleFormOptions());
-                this.vehicleBarCharts.forEach((vehicleBarChart) => vehicleBarChart.startAcceptingDroppedVehicles());
-                this.vehicleTableView.allowDraggingVehicleRows();
+                this.#enableDraggingVehiclesOntoCharts();
             }
             await this.#showPageOfVehicles(1);
         } catch {
             this.pageNavigator.goToLoginPage();
         }
+    }
+
+    #enableDraggingVehiclesOntoCharts() {
+        for (const vehicleBarChart of this.vehicleBarCharts) {
+            vehicleBarChart.render();
+            new ChartDropTarget(vehicleBarChart, this.vehicleDragSession).startListening();
+            new ChartBarDragSource(vehicleBarChart, this.vehicleDragSession).startListening();
+        }
+        this.vehicleTableView.allowDraggingVehicleRows();
     }
 
     async #showPageOfVehicles(pageNumber) {

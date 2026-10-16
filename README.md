@@ -21,7 +21,21 @@ Run pytest through the venv (`venv/Scripts/python -m pytest`) or activate the ve
 ```bash
 venv/Scripts/python -m pytest
 venv/Scripts/python -m pytest --browser webkit
-venv/Scripts/python -m pytest tests/test_login.py
+venv/Scripts/python -m pytest tests/the-internet/test_login.py
+```
+
+Tests are split by application under test:
+
+| Folder | Application | Notes |
+|---|---|---|
+| `tests/the-internet/` | the-internet.herokuapp.com | Page objects in `pom/the_internet.py`. CI runs this folder's smoke tests. |
+| `tests/AUT1/` | local AUT1 car sales and rental app | Page objects in `pom/aut1.py`. Start the AUT1 server first; the tests fail with a hint when it is not reachable. Override its address with `AUT1_BASE_URL` (default `http://127.0.0.1:8000`). |
+
+The folder name `the-internet` is not a valid Python package name, so pytest runs with `--import-mode=importlib` (set in `pyproject.toml`); shared helpers live directly in `tests/`.
+
+```bash
+venv/Scripts/python -m pytest tests/the-internet
+venv/Scripts/python -m pytest tests/AUT1
 ```
 
 Default options live in `pyproject.toml`: failed tests are retried twice (`--reruns 2`), and screenshots, videos and traces of failures are saved to `test-results/`.
@@ -35,7 +49,7 @@ Tests run headless by default. To see the browser and follow each click:
 venv/Scripts/python -m pytest --headed --slowmo 500 -v
 
 # Same, for a single test
-venv/Scripts/python -m pytest "tests/test_login.py::TestLogin::test_valid_credentials_open_secure_area" --headed --slowmo 500 -v
+venv/Scripts/python -m pytest "tests/the-internet/test_login.py::TestLogin::test_valid_credentials_open_secure_area" --headed --slowmo 500 -v
 ```
 
 - `--headed` opens a visible browser window.
@@ -70,10 +84,14 @@ Every test has exactly one area tag.
 | Tag | Covers |
 |---|---|
 | `home` | Home page and navigation (`test_home.py`) |
-| `auth` | Login and logout (`test_login.py`) |
+| `auth` | Login and logout (`test_login.py`; AUT1 login refusal) |
 | `forms` | Checkboxes, dropdown, add/remove elements (`test_form_controls.py`) |
 | `alerts` | JavaScript alert, confirm and prompt dialogs |
 | `dynamic_loading` | Content rendered after an async load |
+| `vehicles` | AUT1 vehicles list and brand access |
+| `drag_and_drop` | AUT1 vehicle comparison charts fed by drag and drop |
+
+AUT1 tests also carry the `aut1` tag, so `-m "not aut1"` skips them when the AUT1 server is not running.
 
 ### Test type
 

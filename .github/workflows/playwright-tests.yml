@@ -48,7 +48,7 @@ jobs:
           done
 
       - name: Run tests
-        run: python -m pytest -m smoke --browser ${{ matrix.browser }} --junitxml=reports/junit-${{ matrix.browser }}.xml
+        run: python -m pytest tests/the-internet -m smoke --browser ${{ matrix.browser }} --junitxml=reports/junit-${{ matrix.browser }}.xml
 
       - name: Upload test artifacts
         if: ${{ !cancelled() }}

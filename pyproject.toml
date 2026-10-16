@@ -16,5 +16,9 @@ markers = [
     "forms: checkboxes, dropdowns and add/remove elements",
     "alerts: JavaScript alert, confirm and prompt dialogs",
     "dynamic_loading: content rendered after an async load",
+    "aut1: tests against the local AUT1 app; its server must be running",
+    "vehicles: AUT1 vehicles list and brand access",
+    "drag_and_drop: AUT1 vehicle comparison charts fed by drag and drop",
+    "dnd: short alias for selected drag and drop tests",
 ]
-addopts = "--strict-markers --reruns 2 --reruns-delay 2 --screenshot only-on-failure --video retain-on-failure --tracing retain-on-failure --output test-results"
+addopts = "--import-mode=importlib --strict-markers --reruns 2 --reruns-delay 2 --screenshot only-on-failure --video retain-on-failure --tracing retain-on-failure --output test-results"

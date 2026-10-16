@@ -397,6 +397,18 @@ th {
     font-size: 11px;
 }
 
+.chart-insertion-marker {
+    stroke: var(--accent-color);
+    stroke-width: 3;
+    stroke-dasharray: 6 4;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.chart-insertion-marker-visible {
+    visibility: visible;
+}
+
 .chart-empty-hint {
     fill: var(--muted-text-color);
     font-size: 14px;
